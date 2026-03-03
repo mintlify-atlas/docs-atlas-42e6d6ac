@@ -1,0 +1,343 @@
+---
+title: 'Batches'
+description: 'Work with Recurse Center batches'
+---
+
+The Batches API provides methods to list all batches and retrieve specific batch information.
+
+## Batch Struct
+
+The `Batch` struct contains information about an RC batch:
+
+```rust src/rc_api.rs:49-62
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Batch {
+    pub id: u32,
+    pub name: String,
+    #[serde(default)]
+    pub short_name: Option<String>,
+    #[serde(default)]
+    pub alt_name: Option<String>,
+    #[serde(default)]
+    pub start_date: Option<String>,
+    #[serde(default)]
+    pub end_date: Option<String>,
+}
+```
+
+<ResponseField name="Batch" type="struct">
+  Information about an RC batch.
+  
+  <Expandable title="Fields">
+    <ResponseField name="id" type="u32" required>
+      Unique identifier for the batch
+    </ResponseField>
+    
+    <ResponseField name="name" type="String" required>
+      Full batch name (e.g., "Summer 2, 2024")
+    </ResponseField>
+    
+    <ResponseField name="short_name" type="Option<String>">
+      Short batch name (e.g., "S2'24")
+    </ResponseField>
+    
+    <ResponseField name="alt_name" type="Option<String>">
+      Alternative batch name
+    </ResponseField>
+    
+    <ResponseField name="start_date" type="Option<String>">
+      Batch start date (ISO 8601 format)
+    </ResponseField>
+    
+    <ResponseField name="end_date" type="Option<String>">
+      Batch end date (ISO 8601 format)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## List All Batches
+
+Retrieve a list of all RC batches.
+
+```rust src/rc_api.rs:513-519
+/// List all batches
+pub fn list_batches(&self) -> Result<Vec<Batch>> {
+    let url = self.build_url("/batches");
+    let response = self.client.get(&url).headers(self.auth_headers()).send()?;
+    
+    Self::handle_response(response)
+}
+```
+
+<ParamField path="list_batches" type="fn(&self) -> Result<Vec<Batch>>">
+  List all batches.
+  
+  **Returns:** `Result<Vec<Batch>>`
+  
+  **API Endpoint:** `GET /api/v1/batches`
+</ParamField>
+
+### Example
+
+```rust
+use rc_api::RcApiClient;
+
+let client = RcApiClient::new(token)?;
+let batches = client.list_batches()?;
+
+println!("Total batches: {}", batches.len());
+
+for batch in batches {
+    println!(
+        "Batch {}: {} ({})",
+        batch.id,
+        batch.name,
+        batch.short_name.unwrap_or_default()
+    );
+}
+```
+
+### Example Output
+
+```
+Total batches: 150
+Batch 1: Winter 1, 2024 (W1'24)
+Batch 2: Winter 2, 2024 (W2'24)
+Batch 3: Spring 1, 2024 (SP1'24)
+Batch 4: Spring 2, 2024 (SP2'24)
+...
+```
+
+## Get Batch by ID
+
+Retrieve a specific batch by its ID.
+
+```rust src/rc_api.rs:521-527
+/// Get a batch by ID
+pub fn get_batch(&self, batch_id: u32) -> Result<Batch> {
+    let url = self.build_url(&format!("/batches/{}", batch_id));
+    let response = self.client.get(&url).headers(self.auth_headers()).send()?;
+    
+    Self::handle_response(response)
+}
+```
+
+<ParamField path="get_batch" type="fn(&self, u32) -> Result<Batch>">
+  Get a batch by ID.
+  
+  **Parameters:**
+  - `batch_id` (u32): The batch's unique ID
+  
+  **Returns:** `Result<Batch>`
+  
+  **API Endpoint:** `GET /api/v1/batches/{batch_id}`
+  
+  **Errors:** Returns `RcApiError::NotFound` if batch doesn't exist
+</ParamField>
+
+### Example
+
+```rust
+let batch = client.get_batch(123)?;
+
+println!("Batch: {}", batch.name);
+if let Some(start) = batch.start_date {
+    println!("Starts: {}", start);
+}
+if let Some(end) = batch.end_date {
+    println!("Ends: {}", end);
+}
+```
+
+## Working with Batch Data
+
+### Find Current Batches
+
+```rust
+use chrono::Utc;
+
+let batches = client.list_batches()?;
+let today = Utc::now().date_naive().to_string();
+
+let current_batches: Vec<_> = batches
+    .into_iter()
+    .filter(|b| {
+        if let (Some(start), Some(end)) = (&b.start_date, &b.end_date) {
+            start <= &today && &today <= end
+        } else {
+            false
+        }
+    })
+    .collect();
+
+println!("Current batches: {}", current_batches.len());
+```
+
+### Get Batch Members
+
+Use the Profiles API with the `batch_id` parameter:
+
+```rust
+use rc_api::ProfileSearchParams;
+
+let batch_id = 123;
+let profiles = client.search_profiles(ProfileSearchParams {
+    batch_id: Some(batch_id),
+    ..Default::default()
+})?;
+
+println!("Batch {} has {} members", batch_id, profiles.len());
+```
+
+### Display Batch Info
+
+```rust src/main.rs:276-287
+// From RC VCF Generator - extracting batch info from stints
+let batch_info: Vec<String> = profile
+    .stints
+    .iter()
+    .filter_map(|stint| {
+        stint.batch.as_ref().map(|b| {
+            format!(
+                "Recurse {}",
+                b.short_name.clone().unwrap_or(b.name.clone())
+            )
+        })
+    })
+    .collect();
+```
+
+## Deprecated: Get Batch People
+
+<Warning>
+The `get_batch_people()` method is deprecated. Use `search_profiles()` with the `batch_id` parameter instead.
+</Warning>
+
+```rust src/rc_api.rs:529-536
+/// Get people in a batch (deprecated - use search_profiles instead)
+#[deprecated(note = "Use search_profiles with batch_id parameter instead")]
+pub fn get_batch_people(&self, batch_id: u32) -> Result<Vec<Person>> {
+    let url = self.build_url(&format!("/batches/{}/people", batch_id));
+    let response = self.client.get(&url).headers(self.auth_headers()).send()?;
+    
+    Self::handle_response(response)
+}
+```
+
+### Migration Guide
+
+<CodeGroup>
+```rust Deprecated (Don't use)
+#[allow(deprecated)]
+let people = client.get_batch_people(123)?;
+```
+
+```rust Recommended
+use rc_api::ProfileSearchParams;
+
+let profiles = client.search_profiles(ProfileSearchParams {
+    batch_id: Some(123),
+    ..Default::default()
+})?;
+```
+</CodeGroup>
+
+## Related Structs
+
+### Stint
+
+Stints represent a person's participation in a batch:
+
+```rust src/rc_api.rs:72-86
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Stint {
+    pub id: u32,
+    #[serde(rename = "type")]
+    pub stint_type: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    pub for_half_batch: bool,
+    pub in_progress: bool,
+    pub start_date: String,
+    #[serde(default)]
+    pub end_date: Option<String>,
+    #[serde(default)]
+    pub batch: Option<Batch>,
+}
+```
+
+<ResponseField name="Stint" type="struct">
+  A person's stint (participation) in an RC batch.
+  
+  <Expandable title="Fields">
+    <ResponseField name="id" type="u32" required>
+      Stint ID
+    </ResponseField>
+    
+    <ResponseField name="stint_type" type="String" required>
+      Type of stint (e.g., "retreat", "batch")
+    </ResponseField>
+    
+    <ResponseField name="title" type="Option<String>">
+      Stint title if applicable (e.g., "Resident", "Facilitator")
+    </ResponseField>
+    
+    <ResponseField name="for_half_batch" type="bool" required>
+      Whether this is a half-batch stint
+    </ResponseField>
+    
+    <ResponseField name="in_progress" type="bool" required>
+      Whether the stint is currently active
+    </ResponseField>
+    
+    <ResponseField name="start_date" type="String" required>
+      Stint start date
+    </ResponseField>
+    
+    <ResponseField name="end_date" type="Option<String>">
+      Stint end date
+    </ResponseField>
+    
+    <ResponseField name="batch" type="Option<Batch>">
+      The associated batch information
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example: Working with Stints
+
+```rust
+let profile = client.get_profile_by_id(12345)?;
+
+for stint in &profile.stints {
+    println!("Stint type: {}", stint.stint_type);
+    
+    if let Some(batch) = &stint.batch {
+        println!("  Batch: {} (ID: {})", batch.name, batch.id);
+    }
+    
+    if stint.in_progress {
+        println!("  Status: Currently active");
+    }
+    
+    if stint.for_half_batch {
+        println!("  Duration: Half batch");
+    }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Profiles" icon="user" href="/api/profiles">
+    Get batch members using Profiles API
+  </Card>
+  
+  <Card title="Locations" icon="map-pin" href="/api/locations">
+    Search for batch locations
+  </Card>
+  
+  <Card title="Error Handling" icon="triangle-exclamation" href="/api/error-handling">
+    Handle batch-related errors
+  </Card>
+</CardGroup>

@@ -1,0 +1,193 @@
+---
+title: Installation
+description: Install the RC VCF Generator CLI tool
+---
+
+## Prerequisites
+
+Before installing RC VCF Generator, ensure you have:
+
+<Steps>
+  <Step title="Rust Toolchain">
+    Install Rust 1.70 or later. The easiest way is using [rustup](https://rustup.rs/):
+    
+    ```bash
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+    ```
+    
+    Verify your installation:
+    
+    ```bash
+    rustc --version
+    cargo --version
+    ```
+  </Step>
+  
+  <Step title="Recurse Center Account">
+    You'll need an active Recurse Center account to access the API. If you're a Recurser, you already have one!
+  </Step>
+  
+  <Step title="Personal Access Token">
+    Generate a personal access token from your RC account:
+    
+    1. Log in to [recurse.com](https://www.recurse.com)
+    2. Navigate to Settings → API
+    3. Click "Create new token"
+    4. Give it a descriptive name (e.g., "VCF Generator")
+    5. Copy the token - you'll need it for the `RECURSE_PAT` environment variable
+    
+    <Warning>
+      Store your token securely! It grants access to your RC account and profile data.
+    </Warning>
+  </Step>
+</Steps>
+
+## Installation Methods
+
+### Option 1: Install from Crates.io (Recommended)
+
+<Note>
+  This method is not yet available as the package hasn't been published to crates.io. Use Option 2 for now.
+</Note>
+
+Once published, installation will be as simple as:
+
+```bash
+cargo install rc-vcf
+```
+
+### Option 2: Build from Source
+
+Clone the repository and build the project:
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/rc-vcf.git
+cd rc-vcf
+
+# Build the release binary
+cargo build --release
+
+# The binary will be at target/release/rc-vcf
+# Optionally, copy it to your PATH
+sudo cp target/release/rc-vcf /usr/local/bin/
+```
+
+<Note>
+  Building from source requires the Rust toolchain and may take a few minutes to compile all dependencies.
+</Note>
+
+### Option 3: Development Installation
+
+For contributors or those who want to modify the code:
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/rc-vcf.git
+cd rc-vcf
+
+# Run directly with cargo
+cargo run
+
+# Or build in debug mode
+cargo build
+```
+
+## Dependencies
+
+The project uses the following key dependencies (from `Cargo.toml`):
+
+```toml Cargo.toml
+[dependencies]
+reqwest = { version = "0.12", features = ["json", "blocking"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2.0"
+base64 = "0.22"
+urlencoding = "2.1"
+dotenv = "0.15.0"
+phonenumber = "0.3"
+```
+
+These will be automatically installed when you build the project.
+
+## Verify Installation
+
+After installation, verify that the tool is available:
+
+<CodeGroup>
+
+```bash If installed to PATH
+rc-vcf --version
+```
+
+```bash If running from project directory
+cargo run -- --version
+```
+
+```bash If using the binary directly
+./target/release/rc-vcf --version
+```
+
+</CodeGroup>
+
+<Note>
+  The current version is **0.1.0** as specified in `Cargo.toml`.
+</Note>
+
+## Platform-Specific Notes
+
+### macOS
+
+No additional setup required. The tool works out of the box after Rust installation.
+
+### Linux
+
+You may need to install OpenSSL development libraries:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install pkg-config libssl-dev
+
+# Fedora/RHEL
+sudo dnf install pkgconfig openssl-devel
+
+# Arch Linux
+sudo pacman -S openssl pkg-config
+```
+
+### Windows
+
+The tool should work on Windows with the Rust toolchain, but has been primarily tested on Unix-like systems. If you encounter issues, please report them on GitHub.
+
+## Troubleshooting
+
+### Compilation Errors
+
+If you encounter compilation errors:
+
+1. Ensure you're using Rust 1.70 or later
+2. Update your Rust toolchain: `rustup update`
+3. Clean the build cache: `cargo clean && cargo build --release`
+
+### Missing OpenSSL
+
+If you see errors about OpenSSL:
+
+- On macOS: Install via Homebrew: `brew install openssl`
+- On Linux: See platform-specific notes above
+
+### Permission Denied
+
+If you can't copy the binary to `/usr/local/bin/`:
+
+- Use `sudo` for the copy command
+- Or add the binary to your PATH without copying:
+  ```bash
+  export PATH="$PATH:$(pwd)/target/release"
+  ```
+
+## Next Steps
+
+Now that you've installed RC VCF Generator, head over to the [Quickstart](/quickstart) guide to generate your first VCF file!

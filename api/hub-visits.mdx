@@ -1,0 +1,568 @@
+---
+title: 'Hub Visits'
+description: 'Manage RC hub visit records'
+---
+
+The Hub Visits API allows you to track when Recursers visit physical RC spaces. You can create, read, update, and delete hub visit records.
+
+## HubVisit Struct
+
+The `HubVisit` struct represents a visit to an RC hub:
+
+```rust src/rc_api.rs:227-240
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HubVisit {
+    pub person: PersonInfo,
+    pub date: String,
+    #[serde(default)]
+    pub app_data: serde_json::Value,
+    #[serde(default)]
+    pub notes: String,
+    pub created_at: String,
+    pub updated_at: String,
+    #[serde(default)]
+    pub created_by_app: Option<String>,
+    #[serde(default)]
+    pub updated_by_app: Option<String>,
+}
+```
+
+<ResponseField name="HubVisit" type="struct">
+  Information about a hub visit.
+  
+  <Expandable title="Fields">
+    <ResponseField name="person" type="PersonInfo" required>
+      Information about the person who visited
+    </ResponseField>
+    
+    <ResponseField name="date" type="String" required>
+      Date of the visit (YYYY-MM-DD format)
+    </ResponseField>
+    
+    <ResponseField name="app_data" type="serde_json::Value">
+      Custom application data (JSON)
+    </ResponseField>
+    
+    <ResponseField name="notes" type="String">
+      Notes about the visit
+    </ResponseField>
+    
+    <ResponseField name="created_at" type="String" required>
+      Timestamp when the record was created
+    </ResponseField>
+    
+    <ResponseField name="updated_at" type="String" required>
+      Timestamp when the record was last updated
+    </ResponseField>
+    
+    <ResponseField name="created_by_app" type="Option<String>">
+      Name of the app that created the record
+    </ResponseField>
+    
+    <ResponseField name="updated_by_app" type="Option<String>">
+      Name of the app that last updated the record
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### PersonInfo
+
+```rust src/rc_api.rs:218-223
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PersonInfo {
+    pub id: u32,
+    pub name: String,
+}
+```
+
+## Get Hub Visits
+
+Query hub visits with flexible filtering options.
+
+```rust src/rc_api.rs:565-597
+/// Get hub visits
+pub fn get_hub_visits(&self, params: HubVisitQueryParams) -> Result<Vec<HubVisit>> {
+    let url = self.build_url("/hub_visits");
+    let mut query_params = Vec::new();
+    
+    if let Some(date) = params.date {
+        query_params.push(("date", date.to_string()));
+    }
+    if let Some(start_date) = params.start_date {
+        query_params.push(("start_date", start_date.to_string()));
+    }
+    if let Some(end_date) = params.end_date {
+        query_params.push(("end_date", end_date.to_string()));
+    }
+    if let Some(person_id) = params.person_id {
+        query_params.push(("person_id", person_id.to_string()));
+    }
+    if let Some(page) = params.page {
+        query_params.push(("page", page.to_string()));
+    }
+    if let Some(per_page) = params.per_page {
+        query_params.push(("per_page", per_page.to_string()));
+    }
+    
+    let response = self
+        .client
+        .get(&url)
+        .headers(self.auth_headers())
+        .query(&query_params)
+        .send()?;
+    
+    Self::handle_response(response)
+}
+```
+
+### HubVisitQueryParams
+
+```rust src/rc_api.rs:335-343
+#[derive(Debug, Default, Clone)]
+pub struct HubVisitQueryParams {
+    pub date: Option<NaiveDate>,
+    pub start_date: Option<NaiveDate>,
+    pub end_date: Option<NaiveDate>,
+    pub person_id: Option<u32>,
+    pub page: Option<u32>,
+    pub per_page: Option<u32>,
+}
+```
+
+<ParamField path="get_hub_visits" type="fn(&self, HubVisitQueryParams) -> Result<Vec<HubVisit>>">
+  Query hub visits with flexible filters.
+  
+  **Parameters:**
+  <Expandable title="HubVisitQueryParams">
+    <ParamField path="date" type="Option<NaiveDate>">
+      Get visits on a specific date
+    </ParamField>
+    
+    <ParamField path="start_date" type="Option<NaiveDate>">
+      Get visits from this date onwards (inclusive)
+    </ParamField>
+    
+    <ParamField path="end_date" type="Option<NaiveDate>">
+      Get visits up to this date (inclusive)
+    </ParamField>
+    
+    <ParamField path="person_id" type="Option<u32>">
+      Filter by person ID
+    </ParamField>
+    
+    <ParamField path="page" type="Option<u32>">
+      Page number for pagination
+    </ParamField>
+    
+    <ParamField path="per_page" type="Option<u32>">
+      Number of results per page
+    </ParamField>
+  </Expandable>
+  
+  **Returns:** `Result<Vec<HubVisit>>`
+  
+  **API Endpoint:** `GET /api/v1/hub_visits`
+</ParamField>
+
+### Examples
+
+<CodeGroup>
+```rust Get All Visits
+use rc_api::{RcApiClient, HubVisitQueryParams};
+
+let client = RcApiClient::new(token)?;
+
+let visits = client.get_hub_visits(HubVisitQueryParams {
+    per_page: Some(100),
+    ..Default::default()
+})?;
+
+println!("Total visits: {}", visits.len());
+```
+
+```rust Get Visits for Specific Date
+use chrono::NaiveDate;
+
+let date = NaiveDate::from_ymd_opt(2024, 3, 15).unwrap();
+
+let visits = client.get_hub_visits(HubVisitQueryParams {
+    date: Some(date),
+    ..Default::default()
+})?;
+
+println!("Visits on {}: {}", date, visits.len());
+```
+
+```rust Get Visits in Date Range
+let start = NaiveDate::from_ymd_opt(2024, 3, 1).unwrap();
+let end = NaiveDate::from_ymd_opt(2024, 3, 31).unwrap();
+
+let visits = client.get_hub_visits(HubVisitQueryParams {
+    start_date: Some(start),
+    end_date: Some(end),
+    ..Default::default()
+})?;
+
+println!("March 2024 visits: {}", visits.len());
+```
+
+```rust Get Visits by Person
+let visits = client.get_hub_visits(HubVisitQueryParams {
+    person_id: Some(12345),
+    ..Default::default()
+})?;
+
+println!("Person's total visits: {}", visits.len());
+```
+</CodeGroup>
+
+## Get Specific Hub Visit
+
+Retrieve a specific hub visit by person ID and date.
+
+```rust src/rc_api.rs:599-605
+/// Get a specific hub visit
+pub fn get_hub_visit(&self, person_id: u32, date: NaiveDate) -> Result<HubVisit> {
+    let url = self.build_url(&format!("/hub_visits/{}/{}", person_id, date));
+    let response = self.client.get(&url).headers(self.auth_headers()).send()?;
+    
+    Self::handle_response(response)
+}
+```
+
+<ParamField path="get_hub_visit" type="fn(&self, u32, NaiveDate) -> Result<HubVisit>">
+  Get a specific hub visit.
+  
+  **Parameters:**
+  - `person_id` (u32): The person's ID
+  - `date` (NaiveDate): The visit date
+  
+  **Returns:** `Result<HubVisit>`
+  
+  **API Endpoint:** `GET /api/v1/hub_visits/{person_id}/{date}`
+  
+  **Errors:** Returns `RcApiError::NotFound` if visit doesn't exist
+</ParamField>
+
+### Example
+
+```rust
+use chrono::NaiveDate;
+
+let person_id = 12345;
+let date = NaiveDate::from_ymd_opt(2024, 3, 15).unwrap();
+
+let visit = client.get_hub_visit(person_id, date)?;
+println!("{} visited on {}", visit.person.name, visit.date);
+println!("Notes: {}", visit.notes);
+```
+
+## Update Hub Visit
+
+Update or create a hub visit record.
+
+```rust src/rc_api.rs:607-632
+/// Update or create a hub visit
+pub fn update_hub_visit(
+    &self,
+    person_id: u32,
+    date: NaiveDate,
+    update: HubVisitUpdate,
+) -> Result<HubVisit> {
+    let url = self.build_url(&format!("/hub_visits/{}/{}", person_id, date));
+    let mut form = HashMap::new();
+    
+    if let Some(notes) = update.notes {
+        form.insert("notes", notes);
+    }
+    if let Some(app_data) = update.app_data {
+        form.insert("app_data", app_data.to_string());
+    }
+    
+    let response = self
+        .client
+        .patch(&url)
+        .headers(self.auth_headers())
+        .form(&form)
+        .send()?;
+    
+    Self::handle_response(response)
+}
+```
+
+### HubVisitUpdate
+
+```rust src/rc_api.rs:345-349
+#[derive(Debug, Default, Clone)]
+pub struct HubVisitUpdate {
+    pub notes: Option<String>,
+    pub app_data: Option<serde_json::Value>,
+}
+```
+
+<ParamField path="update_hub_visit" type="fn(&self, u32, NaiveDate, HubVisitUpdate) -> Result<HubVisit>">
+  Update or create a hub visit. If the visit doesn't exist, it will be created.
+  
+  **Parameters:**
+  - `person_id` (u32): The person's ID
+  - `date` (NaiveDate): The visit date
+  - `update` (HubVisitUpdate): The fields to update
+  
+  <Expandable title="HubVisitUpdate">
+    <ParamField path="notes" type="Option<String>">
+      Notes about the visit
+    </ParamField>
+    
+    <ParamField path="app_data" type="Option<serde_json::Value>">
+      Custom application data (JSON)
+    </ParamField>
+  </Expandable>
+  
+  **Returns:** `Result<HubVisit>`
+  
+  **API Endpoint:** `PATCH /api/v1/hub_visits/{person_id}/{date}`
+</ParamField>
+
+### Examples
+
+<CodeGroup>
+```rust Update Notes
+use chrono::NaiveDate;
+use rc_api::HubVisitUpdate;
+
+let person_id = 12345;
+let date = NaiveDate::from_ymd_opt(2024, 3, 15).unwrap();
+
+let visit = client.update_hub_visit(
+    person_id,
+    date,
+    HubVisitUpdate {
+        notes: Some("Great discussion about Rust!".to_string()),
+        app_data: None,
+    },
+)?;
+
+println!("Updated visit: {:?}", visit);
+```
+
+```rust Update App Data
+use serde_json::json;
+
+let visit = client.update_hub_visit(
+    person_id,
+    date,
+    HubVisitUpdate {
+        notes: None,
+        app_data: Some(json!({
+            "check_in_time": "09:30",
+            "projects": ["rust-api", "web-app"]
+        })),
+    },
+)?;
+```
+
+```rust Update Both Fields
+let visit = client.update_hub_visit(
+    person_id,
+    date,
+    HubVisitUpdate {
+        notes: Some("Paired on compiler project".to_string()),
+        app_data: Some(json!({
+            "pairing_partner": 67890,
+            "duration_hours": 3
+        })),
+    },
+)?;
+```
+</CodeGroup>
+
+## Replace Hub Visit Notes
+
+Replace the notes on a hub visit (specialized endpoint).
+
+```rust src/rc_api.rs:650-668
+/// Replace notes on a hub visit
+pub fn replace_hub_visit_notes(
+    &self,
+    person_id: u32,
+    date: NaiveDate,
+    notes: &str,
+) -> Result<HubVisit> {
+    let url = self.build_url(&format!("/hub_visits/{}/{}/notes", person_id, date));
+    let params = [("notes", notes)];
+    
+    let response = self
+        .client
+        .patch(&url)
+        .headers(self.auth_headers())
+        .form(&params)
+        .send()?;
+    
+    Self::handle_response(response)
+}
+```
+
+<ParamField path="replace_hub_visit_notes" type="fn(&self, u32, NaiveDate, &str) -> Result<HubVisit>">
+  Replace the notes on a hub visit.
+  
+  **Parameters:**
+  - `person_id` (u32): The person's ID
+  - `date` (NaiveDate): The visit date
+  - `notes` (&str): The new notes (replaces existing notes)
+  
+  **Returns:** `Result<HubVisit>`
+  
+  **API Endpoint:** `PATCH /api/v1/hub_visits/{person_id}/{date}/notes`
+</ParamField>
+
+### Example
+
+```rust
+let visit = client.replace_hub_visit_notes(
+    12345,
+    NaiveDate::from_ymd_opt(2024, 3, 15).unwrap(),
+    "Updated notes - worked on database optimization",
+)?;
+```
+
+<Note>
+This method replaces the entire notes field. Use `update_hub_visit()` if you want to preserve app_data.
+</Note>
+
+## Delete Hub Visit
+
+Delete a hub visit record.
+
+```rust src/rc_api.rs:634-648
+/// Delete a hub visit
+pub fn delete_hub_visit(&self, person_id: u32, date: NaiveDate) -> Result<()> {
+    let url = self.build_url(&format!("/hub_visits/{}/{}", person_id, date));
+    let response = self
+        .client
+        .delete(&url)
+        .headers(self.auth_headers())
+        .send()?;
+    
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(Self::error_from_status(response.status()))
+    }
+}
+```
+
+<ParamField path="delete_hub_visit" type="fn(&self, u32, NaiveDate) -> Result<()>">
+  Delete a hub visit record.
+  
+  **Parameters:**
+  - `person_id` (u32): The person's ID
+  - `date` (NaiveDate): The visit date
+  
+  **Returns:** `Result<()>` (no content on success)
+  
+  **API Endpoint:** `DELETE /api/v1/hub_visits/{person_id}/{date}`
+  
+  **Errors:** Returns `RcApiError::NotFound` if visit doesn't exist
+</ParamField>
+
+### Example
+
+```rust
+use chrono::NaiveDate;
+
+let person_id = 12345;
+let date = NaiveDate::from_ymd_opt(2024, 3, 15).unwrap();
+
+match client.delete_hub_visit(person_id, date) {
+    Ok(()) => println!("Visit deleted successfully"),
+    Err(e) => eprintln!("Failed to delete visit: {}", e),
+}
+```
+
+## Common Workflows
+
+### Track Daily Hub Visits
+
+```rust
+use chrono::Utc;
+use serde_json::json;
+
+let today = Utc::now().date_naive();
+let person_id = 12345;
+
+// Record a visit
+let visit = client.update_hub_visit(
+    person_id,
+    today,
+    HubVisitUpdate {
+        notes: Some("Working on final project".to_string()),
+        app_data: Some(json!({
+            "check_in": Utc::now().to_rfc3339(),
+        })),
+    },
+)?;
+
+println!("Recorded visit for {}", visit.person.name);
+```
+
+### Generate Visit Report
+
+```rust
+use chrono::NaiveDate;
+
+let start = NaiveDate::from_ymd_opt(2024, 3, 1).unwrap();
+let end = NaiveDate::from_ymd_opt(2024, 3, 31).unwrap();
+
+let visits = client.get_hub_visits(HubVisitQueryParams {
+    start_date: Some(start),
+    end_date: Some(end),
+    per_page: Some(1000),
+    ..Default::default()
+})?;
+
+let mut visitor_counts = std::collections::HashMap::new();
+for visit in visits {
+    *visitor_counts.entry(visit.person.id).or_insert(0) += 1;
+}
+
+println!("Top visitors in March 2024:");
+let mut counts: Vec<_> = visitor_counts.into_iter().collect();
+counts.sort_by_key(|(_, count)| std::cmp::Reverse(*count));
+for (person_id, count) in counts.iter().take(10) {
+    println!("  Person {}: {} visits", person_id, count);
+}
+```
+
+### Check if Person Visited Today
+
+```rust
+use chrono::Utc;
+
+fn visited_today(client: &RcApiClient, person_id: u32) -> Result<bool> {
+    let today = Utc::now().date_naive();
+    
+    match client.get_hub_visit(person_id, today) {
+        Ok(_) => Ok(true),
+        Err(RcApiError::NotFound) => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
+if visited_today(&client, 12345)? {
+    println!("Person is at the hub today!");
+} else {
+    println!("Person hasn't visited today");
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Profiles" icon="user" href="/api/profiles">
+    Get person information for hub visits
+  </Card>
+  
+  <Card title="Error Handling" icon="triangle-exclamation" href="/api/error-handling">
+    Handle hub visit errors
+  </Card>
+</CardGroup>

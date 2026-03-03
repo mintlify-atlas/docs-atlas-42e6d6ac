@@ -1,0 +1,333 @@
+---
+title: 'Generating VCF Files'
+description: 'Complete guide to generating vCard files from Recurse Center profiles'
+icon: 'address-card'
+---
+
+The RC VCF Generator creates a single `.vcf` file containing contact information for all Recursers, complete with photos, social links, and batch information.
+
+## Quick Start
+
+<Steps>
+  <Step title="Set up authentication">
+    Make sure you have your `RECURSE_PAT` environment variable set:
+    
+    ```bash
+    export RECURSE_PAT="your_token_here"
+    ```
+    
+    See the [Authentication guide](/guides/authentication) for details.
+  </Step>
+  
+  <Step title="Run the generator">
+    ```bash
+    cargo run --release
+    ```
+    
+    The `--release` flag enables optimizations for faster processing.
+  </Step>
+  
+  <Step title="Wait for completion">
+    The generator will display real-time progress as it fetches and processes profiles:
+    
+    ```
+    🔄 RC VCF Generator
+    
+    ✓ API client initialized (0s)
+    ⠋ Fetching batch 1 (profiles 0-50)... (1s)
+    ✓ Batch 1: fetched 50 profiles (2s)
+    ⠙ Processing 1/50: Alice Smith (downloading photo...) (3s)
+    ```
+  </Step>
+  
+  <Step title="Import the generated file">
+    Once complete, you'll find `recursers.vcf` in the current directory. See the [Importing guide](/guides/importing-contacts) for next steps.
+  </Step>
+</Steps>
+
+## What Data Gets Included
+
+The VCF generator extracts the following information from each Recurser's profile:
+
+### Core Contact Information
+
+<Tabs>
+  <Tab title="Name">
+    ```
+    FN:Alice Smith
+    N:Smith;Alice;;;
+    ```
+    
+    - **Full Name (FN)**: The complete display name from `profile.name`
+    - **Structured Name (N)**: Last name and first name from `profile.last_name` and `profile.first_name`
+    
+    Source: `main.rs:148-155`
+  </Tab>
+  
+  <Tab title="Email">
+    ```
+    item1.EMAIL;TYPE=INTERNET:alice@example.com
+    item1.X-ABLabel:
+    ```
+    
+    The email address from `profile.email` (always included).
+    
+    Source: `main.rs:158-165`
+  </Tab>
+  
+  <Tab title="Phone">
+    ```
+    item2.TEL:(718) 555-0123
+    item2.X-ABLabel:mobile
+    ```
+    
+    Phone numbers are automatically normalized:
+    - **US numbers**: `(718) 555-0123` (national format)
+    - **International**: `+44 20 7946 0958` (international format)
+    
+    The normalization uses the `phonenumber` crate with US as the default country (see `main.rs:11-44`).
+    
+    Source: `main.rs:168-175`
+  </Tab>
+</Tabs>
+
+### Professional Information
+
+```
+ORG:Acme Corp;Software Engineer
+TITLE:Software Engineer
+```
+
+Extracted from `profile.company` and `profile.employer_role` (see `main.rs:178-190`).
+
+### Social Links and URLs
+
+All available social profiles are included as URL fields:
+
+<Accordion title="Personal Website">
+  ```
+  item3.URL:https\://example.com
+  item3.X-ABLabel:website
+  ```
+  
+  From `profile.personal_site_url` (main.rs:193-203)
+</Accordion>
+
+<Accordion title="GitHub">
+  ```
+  item4.URL:https\://github.com/username
+  item4.X-ABLabel:GitHub
+  ```
+  
+  Constructed from `profile.github` username (main.rs:206-215)
+</Accordion>
+
+<Accordion title="Twitter">
+  ```
+  item5.URL:https\://twitter.com/username
+  item5.X-ABLabel:Twitter
+  ```
+  
+  Constructed from `profile.twitter` handle (main.rs:218-227)
+</Accordion>
+
+<Accordion title="LinkedIn">
+  ```
+  item6.URL:https\://linkedin.com/in/username
+  item6.X-ABLabel:LinkedIn
+  ```
+  
+  Handles both full URLs and usernames from `profile.linkedin` (main.rs:230-241)
+</Accordion>
+
+<Accordion title="Recurse Center Profile">
+  ```
+  itemN.URL:https\://www.recurse.com/directory/slug
+  itemN.X-ABLabel:Recurse Center
+  ```
+  
+  Always included, links to the Recurser's RC directory page (main.rs:244-249)
+</Accordion>
+
+### Photos
+
+Profile photos are embedded directly in the VCF file as base64-encoded data:
+
+```
+PHOTO;ENCODING=b;TYPE=JPEG:base64_encoded_image_data
+```
+
+The photo embedding process:
+
+1. **Download**: Fetches the image from `profile.image_path` (main.rs:251-257)
+2. **Detect format**: Supports JPEG, PNG, and GIF (main.rs:114-120)
+3. **Encode**: Converts to base64 (main.rs:123)
+4. **Format**: Wraps at 75 characters per line per vCard spec (main.rs:261-270)
+
+<Info>
+  Photos are downloaded in real-time during generation. This ensures you always get the latest profile pictures but may take longer for large batches.
+</Info>
+
+### Batch Information
+
+```
+CATEGORIES:Recurser,Recurse W1'25,Recurse S2'23
+```
+
+Batch membership is extracted from `profile.stints` and added to the `CATEGORIES` field. This allows you to:
+- Filter contacts by batch in your contact manager
+- Identify all Recursers with the "Recurser" category
+- See which batches someone attended
+
+Source: `main.rs:276-293`
+
+### Pronouns
+
+```
+NOTE:Pronouns: they/them
+```
+
+Pronouns from `profile.pronouns` are stored in the `NOTE` field (main.rs:296-300).
+
+### Unique ID
+
+```
+UID:recurser-12345
+```
+
+Each contact has a unique identifier based on the Recurser's ID, ensuring proper updates when re-importing (main.rs:303).
+
+## Batch Processing
+
+The generator fetches profiles in batches of 50 to handle large datasets efficiently:
+
+```rust
+let mut offset = 0;
+let limit = 50;
+
+loop {
+    let response = client.search_profiles(ProfileSearchParams {
+        limit: Some(limit),
+        offset: Some(offset),
+        ..Default::default()
+    });
+    
+    // Process profiles...
+    offset += count;
+}
+```
+
+Source: `main.rs:335-397`
+
+### Progress Indicators
+
+The generator provides real-time feedback:
+
+- **Spinner animation**: Rotating indicator showing active processing
+- **Elapsed time**: Time since start in seconds or minutes
+- **Progress counts**: Current profile / total profiles
+- **Status messages**: What's happening right now
+
+```rust
+progress.print_status(&format!(
+    "Processing {}/{}: {} (downloading photo...)",
+    idx + 1, total, profile.name
+));
+```
+
+Source: `main.rs:46-92`
+
+## Error Handling and Retry Logic
+
+The generator includes automatic retry on failures:
+
+```rust
+Err(e) => {
+    progress.print_error(&format!("Error fetching batch {}: {}", batch_count, e));
+    progress.print_info("Retrying in 5 seconds...");
+    std::thread::sleep(std::time::Duration::from_secs(5));
+    batch_count -= 1; // Don't count failed batch
+}
+```
+
+This handles:
+- Temporary network issues
+- API rate limiting
+- Transient server errors
+
+Source: `main.rs:390-396`
+
+## Output Format
+
+The generated file follows the vCard 3.0 specification:
+
+```
+BEGIN:VCARD
+VERSION:3.0
+FN:Alice Smith
+N:Smith;Alice;;;
+item1.EMAIL;TYPE=INTERNET:alice@example.com
+item1.X-ABLabel:
+item2.TEL:(718) 555-0123
+item2.X-ABLabel:mobile
+ORG:Acme Corp;Software Engineer
+TITLE:Software Engineer
+item3.URL:https\://github.com/alice
+item3.X-ABLabel:GitHub
+PHOTO;ENCODING=b;TYPE=JPEG:base64_data...
+CATEGORIES:Recurser,Recurse W1'25
+NOTE:Pronouns: she/her
+UID:recurser-12345
+END:VCARD
+BEGIN:VCARD
+...
+```
+
+## Summary Statistics
+
+After completion, you'll see a summary:
+
+```
+📊 Summary
+   ├─ Contacts: 2,847
+   ├─ With photos: 2,654
+   ├─ File size: 45.3 MB
+   └─ Time: 4m 23s
+```
+
+Source: `main.rs:409-421`
+
+## Special Character Handling
+
+Special characters in vCard fields are escaped according to the spec:
+
+```rust
+fn escape_vcard(s: &str) -> String {
+    s.replace('\\', "\\\\")
+        .replace('\n', "\\n")
+        .replace(',', "\\,")
+        .replace(';', "\\;")
+}
+```
+
+This ensures:
+- Backslashes are doubled: `\` → `\\`
+- Newlines are escaped: `\n`
+- Commas are escaped: `\,`
+- Semicolons are escaped: `\;`
+
+Source: `main.rs:94-99`
+
+## Performance Tips
+
+<Info>
+  **Use release mode**: `cargo run --release` enables optimizations that can speed up processing by 2-3x.
+</Info>
+
+<Info>
+  **Network speed matters**: Most time is spent downloading profile photos. A faster internet connection will significantly reduce total time.
+</Info>
+
+<Warning>
+  The generated VCF file can be quite large (40+ MB) due to embedded photos. Some contact managers may take a while to import large files.
+</Warning>

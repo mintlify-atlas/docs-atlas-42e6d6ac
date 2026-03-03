@@ -1,0 +1,366 @@
+---
+title: 'Tokens'
+description: 'Create and manage personal access tokens'
+---
+
+The Tokens API allows you to programmatically create personal access tokens for authentication.
+
+<Warning>
+Creating tokens requires **Basic Authentication** (email and password). You cannot create tokens using bearer token authentication.
+</Warning>
+
+## Token Struct
+
+The `Token` struct represents a personal access token:
+
+```rust src/rc_api.rs:243-250
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Token {
+    pub id: u32,
+    pub token: String,
+    pub description: String,
+    #[serde(default)]
+    pub last_used_at: Option<String>,
+}
+```
+
+<ResponseField name="Token" type="struct">
+  Personal access token information.
+  
+  <Expandable title="Fields">
+    <ResponseField name="id" type="u32" required>
+      Unique identifier for the token
+    </ResponseField>
+    
+    <ResponseField name="token" type="String" required>
+      The actual token string (only returned when created)
+    </ResponseField>
+    
+    <ResponseField name="description" type="String" required>
+      Human-readable description of the token
+    </ResponseField>
+    
+    <ResponseField name="last_used_at" type="Option<String>">
+      Timestamp of when the token was last used
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Note>
+The `token` field is only returned when you create a new token. Store it securely - you won't be able to retrieve it again!
+</Note>
+
+## Create Token
+
+Create a new personal access token.
+
+```rust src/rc_api.rs:494-507
+/// Create a personal access token (requires basic auth)
+pub fn create_token(&self, description: &str) -> Result<Token> {
+    let url = self.build_url("/tokens");
+    let params = [("description", description)];
+    
+    let response = self
+        .client
+        .post(&url)
+        .headers(self.auth_headers())
+        .form(&params)
+        .send()?;
+    
+    Self::handle_response(response)
+}
+```
+
+<ParamField path="create_token" type="fn(&self, &str) -> Result<Token>">
+  Create a personal access token.
+  
+  **Parameters:**
+  - `description` (&str): Human-readable description of the token's purpose
+  
+  **Returns:** `Result<Token>`
+  
+  **API Endpoint:** `POST /api/v1/tokens`
+  
+  **Authentication:** Requires **Basic Authentication** (email and password)
+  
+  **Errors:**
+  - `RcApiError::AuthenticationFailed` if credentials are invalid
+  - `RcApiError::BadRequest` if description is invalid
+</ParamField>
+
+## Usage Examples
+
+### Create a Token with Basic Auth
+
+```rust
+use rc_api::RcApiClient;
+
+// Create client with basic authentication
+let client = RcApiClient::with_basic_auth(
+    "user@example.com".to_string(),
+    "password".to_string(),
+)?;
+
+// Create a new token
+let token = client.create_token("My automation script")?;
+
+println!("Token created!");
+println!("ID: {}", token.id);
+println!("Description: {}", token.description);
+println!("Token: {}", token.token);
+println!("\nSave this token securely - you won't see it again!");
+```
+
+### Interactive Token Creation
+
+```rust
+use std::io::{self, Write};
+
+fn create_token_interactive() -> Result<Token, Box<dyn std::error::Error>> {
+    // Get credentials
+    print!("Email: ");
+    io::stdout().flush()?;
+    let mut email = String::new();
+    io::stdin().read_line(&mut email)?;
+    
+    print!("Password: ");
+    io::stdout().flush()?;
+    let password = rpassword::read_password()?;
+    
+    print!("Token description: ");
+    io::stdout().flush()?;
+    let mut description = String::new();
+    io::stdin().read_line(&mut description)?;
+    
+    // Create client and token
+    let client = RcApiClient::with_basic_auth(
+        email.trim().to_string(),
+        password,
+    )?;
+    
+    let token = client.create_token(description.trim())?;
+    
+    println!("\n✓ Token created successfully!");
+    println!("Token: {}", token.token);
+    println!("\nAdd this to your .env file:");
+    println!("RECURSE_PAT={}", token.token);
+    
+    Ok(token)
+}
+```
+
+### Create and Save Token to File
+
+```rust
+use std::fs;
+
+let client = RcApiClient::with_basic_auth(
+    std::env::var("RC_EMAIL")?,
+    std::env::var("RC_PASSWORD")?,
+)?;
+
+let token = client.create_token("CLI tool")?;
+
+// Save to .env file
+let env_content = format!("RECURSE_PAT={}\n", token.token);
+fs::write(".env", env_content)?;
+
+println!("Token saved to .env file");
+```
+
+### Use Newly Created Token
+
+```rust
+// Create token with basic auth
+let basic_client = RcApiClient::with_basic_auth(
+    "user@example.com".to_string(),
+    "password".to_string(),
+)?;
+
+let token = basic_client.create_token("My App")?;
+println!("Created token: {}", token.description);
+
+// Create new client with the token
+let bearer_client = RcApiClient::new(token.token)?;
+
+// Use the token-authenticated client
+let profile = bearer_client.get_my_profile()?;
+println!("Authenticated as: {}", profile.name);
+```
+
+## Token Descriptions
+
+Good token descriptions help you identify tokens later:
+
+<Tabs>
+  <Tab title="Good Descriptions">
+    - "Production VCF Generator"
+    - "Development Testing"
+    - "CI/CD Pipeline"
+    - "Personal CLI Tool"
+    - "Mobile App (iOS)"
+  </Tab>
+  
+  <Tab title="Bad Descriptions">
+    - "test" (too vague)
+    - "token1" (not descriptive)
+    - "" (empty)
+    - "asdf" (meaningless)
+  </Tab>
+</Tabs>
+
+```rust
+// Good examples
+let prod_token = client.create_token("Production API - Contact Sync")?;
+let dev_token = client.create_token("Development - Local Testing")?;
+let ci_token = client.create_token("GitHub Actions - Deploy Workflow")?;
+```
+
+## Security Best Practices
+
+### Store Tokens Securely
+
+<Warning>
+**Never commit tokens to version control!**
+
+The token value is only shown once when created. Store it securely immediately.
+</Warning>
+
+```bash .env
+# Good - use environment variables
+RECURSE_PAT=your_token_here
+```
+
+```gitignore .gitignore
+# Always ignore .env files
+.env
+*.env
+.env.local
+```
+
+### Token Rotation
+
+```rust
+use chrono::{DateTime, Duration, Utc};
+
+// Check if token should be rotated (e.g., older than 90 days)
+fn should_rotate_token(token: &Token) -> bool {
+    if let Some(last_used) = &token.last_used_at {
+        if let Ok(last_used_date) = last_used.parse::<DateTime<Utc>>() {
+            let age = Utc::now() - last_used_date;
+            return age > Duration::days(90);
+        }
+    }
+    false
+}
+
+// Rotate token if needed
+fn rotate_token_if_needed(
+    token: &Token,
+    email: &str,
+    password: &str,
+) -> Result<Option<Token>, Box<dyn std::error::Error>> {
+    if should_rotate_token(token) {
+        let client = RcApiClient::with_basic_auth(
+            email.to_string(),
+            password.to_string(),
+        )?;
+        
+        let new_token = client.create_token(&format!(
+            "{} (rotated)",
+            token.description
+        ))?;
+        
+        println!("Token rotated: {}", new_token.description);
+        Ok(Some(new_token))
+    } else {
+        Ok(None)
+    }
+}
+```
+
+### Use Different Tokens for Different Purposes
+
+```rust
+// Create separate tokens for different environments
+let client = RcApiClient::with_basic_auth(email, password)?;
+
+let prod_token = client.create_token("Production Environment")?;
+let staging_token = client.create_token("Staging Environment")?;
+let dev_token = client.create_token("Development Environment")?;
+
+// Write to different .env files
+std::fs::write(".env.production", format!("RECURSE_PAT={}", prod_token.token))?;
+std::fs::write(".env.staging", format!("RECURSE_PAT={}", staging_token.token))?;
+std::fs::write(".env.development", format!("RECURSE_PAT={}", dev_token.token))?;
+```
+
+## Error Handling
+
+```rust
+use rc_api::{RcApiClient, RcApiError};
+
+let client = RcApiClient::with_basic_auth(
+    "user@example.com".to_string(),
+    "wrong_password".to_string(),
+)?;
+
+match client.create_token("My Token") {
+    Ok(token) => {
+        println!("Token created: {}", token.token);
+    }
+    Err(RcApiError::AuthenticationFailed) => {
+        eprintln!("Error: Invalid email or password");
+    }
+    Err(RcApiError::BadRequest(msg)) => {
+        eprintln!("Error: Bad request - {}", msg);
+    }
+    Err(e) => {
+        eprintln!("Error: {}", e);
+    }
+}
+```
+
+## Limitations
+
+<Note>
+**Important limitations:**
+
+- You must use Basic Authentication to create tokens
+- Bearer tokens cannot create other tokens
+- Token values are only shown once when created
+- There's no API to list or revoke tokens (use the web interface)
+</Note>
+
+### Why Basic Auth is Required
+
+```rust
+// This will NOT work - bearer tokens can't create tokens
+let bearer_client = RcApiClient::new("existing_token".to_string())?;
+let result = bearer_client.create_token("New Token");
+// Result: Err(RcApiError::AuthenticationFailed)
+
+// This WILL work - basic auth can create tokens
+let basic_client = RcApiClient::with_basic_auth(
+    "email@example.com".to_string(),
+    "password".to_string(),
+)?;
+let token = basic_client.create_token("New Token")?;
+// Success!
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/api/authentication">
+    Learn more about authentication methods
+  </Card>
+  
+  <Card title="Error Handling" icon="triangle-exclamation" href="/api/error-handling">
+    Handle token creation errors
+  </Card>
+  
+  <Card title="Profiles" icon="user" href="/api/profiles">
+    Use your token to access profiles
+  </Card>
+</CardGroup>

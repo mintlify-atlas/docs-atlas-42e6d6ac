@@ -1,0 +1,214 @@
+---
+title: 'Overview'
+description: 'Introduction to the RC API Client for Rust'
+---
+
+The `RcApiClient` is a Rust client library for interacting with the Recurse Center API. It provides a type-safe, ergonomic interface for accessing profiles, batches, locations, hub visits, and other RC data.
+
+## Installation
+
+Add the client to your `Cargo.toml`:
+
+```toml
+[dependencies]
+reqwest = { version = "0.11", features = ["blocking", "json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+base64 = "0.21"
+chrono = "0.4"
+thiserror = "1.0"
+urlencoding = "2.1"
+```
+
+## Basic Usage
+
+<CodeGroup>
+```rust Bearer Token
+use rc_api::{RcApiClient, ProfileSearchParams};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create client with bearer token
+    let client = RcApiClient::new("your_access_token".to_string())?;
+    
+    // Search for profiles
+    let profiles = client.search_profiles(ProfileSearchParams {
+        limit: Some(50),
+        ..Default::default()
+    })?;
+    
+    println!("Found {} profiles", profiles.len());
+    Ok(())
+}
+```
+
+```rust Basic Auth
+use rc_api::RcApiClient;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Create client with basic authentication
+    let client = RcApiClient::with_basic_auth(
+        "user@example.com".to_string(),
+        "password".to_string()
+    )?;
+    
+    // Get your profile
+    let profile = client.get_my_profile()?;
+    println!("Hello, {}!", profile.name);
+    Ok(())
+}
+```
+</CodeGroup>
+
+## Client Architecture
+
+The API client is built on top of `reqwest` and provides:
+
+- **Type-safe requests**: All API responses are deserialized into strongly-typed structs
+- **Flexible authentication**: Support for both bearer tokens and basic auth
+- **Automatic URL building**: Constructs API URLs from the base URL and version
+- **Error handling**: Custom error types for common API errors
+- **Blocking interface**: Uses `reqwest::blocking` for synchronous operations
+
+## Base URL Configuration
+
+By default, the client uses `https://www.recurse.com/api/v1` as the base URL. You can override this for testing:
+
+```rust src/rc_api.rs:9-10,378-410
+const BASE_URL: &str = "https://www.recurse.com";
+const API_VERSION: &str = "v1";
+
+impl RcApiClient {
+    /// Create a new API client with bearer token authentication
+    pub fn new(access_token: String) -> Result<Self> {
+        Self::with_auth(Authentication::Bearer(access_token))
+    }
+
+    /// Create a new API client with basic authentication
+    pub fn with_basic_auth(email: String, password: String) -> Result<Self> {
+        Self::with_auth(Authentication::Basic { email, password })
+    }
+
+    /// Create a new API client with custom authentication
+    pub fn with_auth(auth: Authentication) -> Result<Self> {
+        let client = Client::builder().user_agent("rc-vcf/0.1.0").build()?;
+
+        Ok(Self {
+            client,
+            auth,
+            base_url: BASE_URL.to_string(),
+        })
+    }
+
+    /// Set a custom base URL (useful for testing)
+    pub fn with_base_url(mut self, base_url: String) -> Self {
+        self.base_url = base_url;
+        self
+    }
+
+    fn build_url(&self, path: &str) -> String {
+        format!("{}/api/{}{}", self.base_url, API_VERSION, path)
+    }
+}
+```
+
+### Custom Base URL Example
+
+```rust
+let client = RcApiClient::new("token".to_string())?
+    .with_base_url("https://test.recurse.com".to_string());
+```
+
+## Client Struct
+
+<ResponseField name="RcApiClient" type="struct">
+  The main API client structure.
+  
+  <Expandable title="Fields">
+    <ResponseField name="client" type="reqwest::blocking::Client">
+      The underlying HTTP client with user agent "rc-vcf/0.1.0"
+    </ResponseField>
+    
+    <ResponseField name="auth" type="Authentication">
+      Authentication method (Bearer or Basic)
+    </ResponseField>
+    
+    <ResponseField name="base_url" type="String">
+      Base URL for API requests (default: "https://www.recurse.com")
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Constructor Methods
+
+<ParamField path="new" type="fn(String) -> Result<RcApiClient>">
+  Creates a new API client with bearer token authentication.
+  
+  **Parameters:**
+  - `access_token` (String): Your RC personal access token
+  
+  **Returns:** `Result<RcApiClient, RcApiError>`
+</ParamField>
+
+<ParamField path="with_basic_auth" type="fn(String, String) -> Result<RcApiClient>">
+  Creates a new API client with basic authentication.
+  
+  **Parameters:**
+  - `email` (String): Your RC email address
+  - `password` (String): Your RC password
+  
+  **Returns:** `Result<RcApiClient, RcApiError>`
+</ParamField>
+
+<ParamField path="with_auth" type="fn(Authentication) -> Result<RcApiClient>">
+  Creates a new API client with custom authentication.
+  
+  **Parameters:**
+  - `auth` (Authentication): Custom authentication enum
+  
+  **Returns:** `Result<RcApiClient, RcApiError>`
+</ParamField>
+
+<ParamField path="with_base_url" type="fn(self, String) -> RcApiClient">
+  Sets a custom base URL for the client (useful for testing).
+  
+  **Parameters:**
+  - `base_url` (String): Custom base URL (e.g., "https://test.recurse.com")
+  
+  **Returns:** `RcApiClient` (consumes self)
+</ParamField>
+
+## Real-World Example
+
+Here's how the RC VCF Generator uses the client:
+
+```rust src/main.rs:323-333
+let auth = rc_api::Authentication::Bearer(
+    std::env::var("RECURSE_PAT").expect("RECURSE_PAT environment variable not set"),
+);
+let client = rc_api::RcApiClient::with_auth(auth).expect("Failed to create API client");
+
+let http_client = Client::builder()
+    .user_agent("rc-vcf/0.1.0")
+    .build()
+    .expect("Failed to create HTTP client");
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/api/authentication">
+    Learn about authentication methods
+  </Card>
+  
+  <Card title="Profiles API" icon="user" href="/api/profiles">
+    Search and retrieve RC profiles
+  </Card>
+  
+  <Card title="Error Handling" icon="triangle-exclamation" href="/api/error-handling">
+    Handle API errors gracefully
+  </Card>
+  
+  <Card title="Batches" icon="users" href="/api/batches">
+    Work with RC batches
+  </Card>
+</CardGroup>

@@ -1,0 +1,196 @@
+---
+title: 'Authentication'
+description: 'How to obtain and use a Recurse Center personal access token'
+icon: 'key'
+---
+
+The RC VCF Generator uses the Recurse Center API to fetch profile data. You'll need a personal access token to authenticate your requests.
+
+## Getting Your Personal Access Token
+
+<Steps>
+  <Step title="Log in to Recurse Center">
+    Navigate to [recurse.com](https://www.recurse.com) and log in with your account.
+  </Step>
+  
+  <Step title="Navigate to Settings">
+    Go to your account settings page to manage your personal access tokens.
+  </Step>
+  
+  <Step title="Generate a New Token">
+    Create a new personal access token with a descriptive name (e.g., "VCF Generator").
+    
+    <Note>
+      The token will only be displayed once. Make sure to copy it immediately and store it securely.
+    </Note>
+  </Step>
+  
+  <Step title="Set the Environment Variable">
+    Export the token as the `RECURSE_PAT` environment variable:
+    
+    ```bash
+    export RECURSE_PAT="your_token_here"
+    ```
+    
+    To make this permanent, add it to your shell configuration file (`~/.bashrc`, `~/.zshrc`, etc.):
+    
+    ```bash
+    echo 'export RECURSE_PAT="your_token_here"' >> ~/.bashrc
+    source ~/.bashrc
+    ```
+  </Step>
+</Steps>
+
+## Authentication Methods
+
+The RC API client supports two authentication methods:
+
+<Tabs>
+  <Tab title="Bearer Token (Recommended)">
+    This is the default and recommended method. It uses a personal access token:
+    
+    ```rust
+    use rc_api::Authentication;
+    
+    // Using Bearer authentication
+    let auth = Authentication::Bearer(
+        std::env::var("RECURSE_PAT")
+            .expect("RECURSE_PAT environment variable not set")
+    );
+    
+    let client = rc_api::RcApiClient::with_auth(auth)
+        .expect("Failed to create API client");
+    ```
+    
+    The Bearer token is sent in the `Authorization` header:
+    
+    ```
+    Authorization: Bearer your_token_here
+    ```
+    
+    <Info>
+      This method is used by default in the VCF generator (see `main.rs:323-326`).
+    </Info>
+  </Tab>
+  
+  <Tab title="Basic Authentication">
+    You can also authenticate using your email and password:
+    
+    ```rust
+    use rc_api::Authentication;
+    
+    // Using Basic authentication
+    let auth = Authentication::Basic {
+        email: "your.email@example.com".to_string(),
+        password: "your_password".to_string(),
+    };
+    
+    let client = rc_api::RcApiClient::with_auth(auth)
+        .expect("Failed to create API client");
+    ```
+    
+    The credentials are base64-encoded and sent in the `Authorization` header:
+    
+    ```
+    Authorization: Basic base64(email:password)
+    ```
+    
+    <Warning>
+      Basic authentication is primarily used for creating new tokens. For regular API access, Bearer authentication is preferred.
+    </Warning>
+  </Tab>
+</Tabs>
+
+## Authentication Implementation Details
+
+The `Authentication` enum is defined in `rc_api.rs:355-372`:
+
+```rust
+pub enum Authentication {
+    Bearer(String),
+    Basic { email: String, password: String },
+}
+
+impl Authentication {
+    fn to_header_value(&self) -> String {
+        match self {
+            Authentication::Bearer(token) => format!("Bearer {}", token),
+            Authentication::Basic { email, password } => {
+                let credentials = format!("{}:{}", email, password);
+                let encoded = base64::engine::general_purpose::STANDARD
+                    .encode(credentials);
+                format!("Basic {}", encoded)
+            }
+        }
+    }
+}
+```
+
+## Verifying Your Token
+
+You can verify your token works by fetching your own profile:
+
+```rust
+use rc_api::{Authentication, RcApiClient};
+
+let auth = Authentication::Bearer(
+    std::env::var("RECURSE_PAT")?
+);
+let client = RcApiClient::with_auth(auth)?;
+
+// Fetch your profile
+let my_profile = client.get_my_profile()?;
+println!("Authenticated as: {}", my_profile.name);
+```
+
+## Troubleshooting
+
+<Accordion title="Error: RECURSE_PAT environment variable not set">
+  This error occurs when the environment variable is not set. Make sure you've exported it:
+  
+  ```bash
+  export RECURSE_PAT="your_token_here"
+  ```
+  
+  Verify it's set:
+  
+  ```bash
+  echo $RECURSE_PAT
+  ```
+</Accordion>
+
+<Accordion title="Error: Authentication failed (401)">
+  This means your token is invalid or has expired. Generate a new token from your Recurse Center account settings.
+</Accordion>
+
+<Accordion title="Using .env files">
+  The VCF generator supports `.env` files via the `dotenv` crate. Create a `.env` file in your project root:
+  
+  ```env
+  RECURSE_PAT=your_token_here
+  ```
+  
+  The token will be automatically loaded when you run the program (see `main.rs:311`).
+  
+  <Warning>
+    Never commit your `.env` file to version control! Add it to your `.gitignore`.
+  </Warning>
+</Accordion>
+
+## Security Best Practices
+
+- **Never hardcode tokens** in your source code
+- **Don't commit tokens** to version control
+- **Rotate tokens regularly** to minimize security risks
+- **Use environment variables** or secure secret management systems
+- **Grant minimal permissions** when creating tokens
+- **Revoke unused tokens** from your account settings
+
+## API Rate Limits
+
+<Info>
+  The Recurse Center API has rate limits to ensure fair usage. The VCF generator handles this by:
+  - Fetching profiles in batches of 50 (see `main.rs:336`)
+  - Including retry logic with 5-second delays on failures (see `main.rs:390-395`)
+  - Using efficient pagination with offset/limit parameters
+</Info>

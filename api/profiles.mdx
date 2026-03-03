@@ -1,0 +1,476 @@
+---
+title: 'Profiles'
+description: 'Search and retrieve Recurse Center profiles'
+---
+
+The Profiles API allows you to search for and retrieve detailed information about Recursers. It provides methods to search profiles, get profiles by ID or email, and retrieve your own profile.
+
+## Profile Struct
+
+The `Profile` struct contains comprehensive information about a Recurser:
+
+```rust src/rc_api.rs:88-216
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Profile {
+    pub id: u32,
+    pub first_name: String,
+    pub last_name: String,
+    pub name: String,
+    pub name_hl: String,
+    pub email: String,
+    pub slug: String,
+    pub image_path: String,
+    
+    // Optional fields
+    pub github: Option<String>,
+    pub twitter: Option<String>,
+    pub linkedin: Option<String>,
+    pub pronouns: Option<String>,
+    pub phone_number: Option<String>,
+    pub employer_role: Option<String>,
+    pub zoom_url: Option<String>,
+    pub zulip_id: Option<u32>,
+    pub personal_site_url: Option<String>,
+    pub blog_url: Option<String>,
+    pub cluster_username: Option<String>,
+    
+    // Nested structures
+    pub current_location: Option<Location>,
+    pub stints: Vec<Stint>,
+    pub company: Option<Company>,
+    
+    // Profile fields with rendered HTML and highlights
+    pub bio_rendered: Option<String>,
+    pub bio_match: Option<bool>,
+    pub bio_hl: Option<String>,
+    // ... and many more rendered/highlighted fields
+}
+```
+
+<ResponseField name="Profile" type="struct">
+  Complete profile information for a Recurser.
+  
+  <Expandable title="Core Fields">
+    <ResponseField name="id" type="u32" required>
+      Unique identifier for the person
+    </ResponseField>
+    
+    <ResponseField name="first_name" type="String" required>
+      First name
+    </ResponseField>
+    
+    <ResponseField name="last_name" type="String" required>
+      Last name
+    </ResponseField>
+    
+    <ResponseField name="name" type="String" required>
+      Full name
+    </ResponseField>
+    
+    <ResponseField name="email" type="String" required>
+      Email address
+    </ResponseField>
+    
+    <ResponseField name="slug" type="String" required>
+      URL slug for the profile (e.g., "jane-doe-2024")
+    </ResponseField>
+    
+    <ResponseField name="image_path" type="String" required>
+      Path or URL to profile image
+    </ResponseField>
+  </Expandable>
+  
+  <Expandable title="Contact & Social">
+    <ResponseField name="github" type="Option<String>">
+      GitHub username
+    </ResponseField>
+    
+    <ResponseField name="twitter" type="Option<String>">
+      Twitter handle
+    </ResponseField>
+    
+    <ResponseField name="linkedin" type="Option<String>">
+      LinkedIn profile URL or username
+    </ResponseField>
+    
+    <ResponseField name="phone_number" type="Option<String>">
+      Phone number
+    </ResponseField>
+    
+    <ResponseField name="zoom_url" type="Option<String>">
+      Personal Zoom meeting URL
+    </ResponseField>
+    
+    <ResponseField name="personal_site_url" type="Option<String>">
+      Personal website URL
+    </ResponseField>
+    
+    <ResponseField name="blog_url" type="Option<String>">
+      Blog URL
+    </ResponseField>
+  </Expandable>
+  
+  <Expandable title="RC-Specific">
+    <ResponseField name="zulip_id" type="Option<u32>">
+      Zulip user ID
+    </ResponseField>
+    
+    <ResponseField name="cluster_username" type="Option<String>">
+      RC cluster username
+    </ResponseField>
+    
+    <ResponseField name="stints" type="Vec<Stint>">
+      List of RC stints (batches attended)
+    </ResponseField>
+    
+    <ResponseField name="current_location" type="Option<Location>">
+      Current geographic location
+    </ResponseField>
+    
+    <ResponseField name="company" type="Option<Company>">
+      Current employer
+    </ResponseField>
+    
+    <ResponseField name="employer_role" type="Option<String>">
+      Current job title
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Search Profiles
+
+Search for profiles with flexible query parameters.
+
+```rust src/rc_api.rs:429-464
+/// Search for profiles
+pub fn search_profiles(&self, params: ProfileSearchParams) -> Result<Vec<Profile>> {
+    let url = self.build_url("/profiles");
+    // ... builds query params and sends request
+}
+```
+
+### ProfileSearchParams
+
+```rust src/rc_api.rs:318-327
+#[derive(Debug, Default, Clone)]
+pub struct ProfileSearchParams {
+    pub query: Option<String>,
+    pub batch_id: Option<u32>,
+    pub location_id: Option<u32>,
+    pub role: Option<String>,
+    pub scope: Option<String>,
+    pub limit: Option<u32>,
+    pub offset: Option<u32>,
+}
+```
+
+<ParamField path="search_profiles" type="fn(&self, ProfileSearchParams) -> Result<Vec<Profile>>">
+  Search for profiles matching the specified criteria.
+  
+  **Parameters:**
+  <Expandable title="ProfileSearchParams">
+    <ParamField path="query" type="Option<String>">
+      Search query string (searches name, bio, skills, etc.)
+    </ParamField>
+    
+    <ParamField path="batch_id" type="Option<u32>">
+      Filter by specific batch ID
+    </ParamField>
+    
+    <ParamField path="location_id" type="Option<u32>">
+      Filter by location ID
+    </ParamField>
+    
+    <ParamField path="role" type="Option<String>">
+      Filter by role (e.g., "facilitator", "resident")
+    </ParamField>
+    
+    <ParamField path="scope" type="Option<String>">
+      Search scope (e.g., "current", "all")
+    </ParamField>
+    
+    <ParamField path="limit" type="Option<u32>">
+      Maximum number of results (for pagination)
+    </ParamField>
+    
+    <ParamField path="offset" type="Option<u32>">
+      Number of results to skip (for pagination)
+    </ParamField>
+  </Expandable>
+  
+  **Returns:** `Result<Vec<Profile>>`
+  
+  **API Endpoint:** `GET /api/v1/profiles`
+</ParamField>
+
+### Examples
+
+<CodeGroup>
+```rust Search All Profiles
+use rc_api::{RcApiClient, ProfileSearchParams};
+
+let client = RcApiClient::new(token)?;
+
+let profiles = client.search_profiles(ProfileSearchParams {
+    limit: Some(50),
+    offset: Some(0),
+    ..Default::default()
+})?;
+
+println!("Found {} profiles", profiles.len());
+```
+
+```rust Search by Query
+let profiles = client.search_profiles(ProfileSearchParams {
+    query: Some("Python".to_string()),
+    limit: Some(20),
+    ..Default::default()
+})?;
+
+for profile in profiles {
+    println!("{} - {}", profile.name, profile.email);
+}
+```
+
+```rust Filter by Batch
+let profiles = client.search_profiles(ProfileSearchParams {
+    batch_id: Some(123),
+    ..Default::default()
+})?;
+
+println!("Batch has {} members", profiles.len());
+```
+
+```rust Pagination
+let mut offset = 0;
+let limit = 50;
+
+loop {
+    let profiles = client.search_profiles(ProfileSearchParams {
+        limit: Some(limit),
+        offset: Some(offset),
+        ..Default::default()
+    })?;
+    
+    if profiles.is_empty() {
+        break;
+    }
+    
+    // Process profiles...
+    
+    offset += profiles.len() as u32;
+}
+```
+</CodeGroup>
+
+### Real-World Example
+
+From the RC VCF Generator:
+
+```rust src/main.rs:336-351
+let mut offset = 0;
+let limit = 50;
+
+loop {
+    let response = client.search_profiles(ProfileSearchParams {
+        limit: Some(limit),
+        offset: Some(offset),
+        ..Default::default()
+    });
+    
+    match response {
+        Ok(profiles) => {
+            if profiles.is_empty() {
+                break;
+            }
+            // Process profiles...
+            offset += profiles.len() as u32;
+        }
+        Err(e) => eprintln!("Error: {}", e),
+    }
+}
+```
+
+## Get Profile by ID
+
+Retrieve a specific profile by person ID.
+
+```rust src/rc_api.rs:466-472
+/// Get a profile by person ID
+pub fn get_profile_by_id(&self, person_id: u32) -> Result<Profile> {
+    let url = self.build_url(&format!("/profiles/{}", person_id));
+    let response = self.client.get(&url).headers(self.auth_headers()).send()?;
+    Self::handle_response(response)
+}
+```
+
+<ParamField path="get_profile_by_id" type="fn(&self, u32) -> Result<Profile>">
+  Get a profile by person ID.
+  
+  **Parameters:**
+  - `person_id` (u32): The person's unique ID
+  
+  **Returns:** `Result<Profile>`
+  
+  **API Endpoint:** `GET /api/v1/profiles/{person_id}`
+  
+  **Errors:** Returns `RcApiError::NotFound` if profile doesn't exist
+</ParamField>
+
+### Example
+
+```rust
+let profile = client.get_profile_by_id(12345)?;
+println!("Name: {}", profile.name);
+println!("Email: {}", profile.email);
+println!("GitHub: {:?}", profile.github);
+```
+
+## Get Profile by Email
+
+Retrieve a profile by email address.
+
+```rust src/rc_api.rs:474-480
+/// Get a profile by email
+pub fn get_profile_by_email(&self, email: &str) -> Result<Profile> {
+    let url = self.build_url(&format!("/profiles/{}", urlencoding::encode(email)));
+    let response = self.client.get(&url).headers(self.auth_headers()).send()?;
+    Self::handle_response(response)
+}
+```
+
+<ParamField path="get_profile_by_email" type="fn(&self, &str) -> Result<Profile>">
+  Get a profile by email address.
+  
+  **Parameters:**
+  - `email` (&str): The person's email address (URL-encoded automatically)
+  
+  **Returns:** `Result<Profile>`
+  
+  **API Endpoint:** `GET /api/v1/profiles/{email}` (email is URL-encoded)
+  
+  **Errors:** Returns `RcApiError::NotFound` if profile doesn't exist
+</ParamField>
+
+### Example
+
+```rust
+let profile = client.get_profile_by_email("user@example.com")?;
+println!("Found: {} (ID: {})", profile.name, profile.id);
+```
+
+<Note>
+The email is automatically URL-encoded, so you can pass it as-is.
+</Note>
+
+## Get My Profile
+
+Retrieve the profile of the currently authenticated user.
+
+```rust src/rc_api.rs:482-488
+/// Get the current user's profile
+pub fn get_my_profile(&self) -> Result<Profile> {
+    let url = self.build_url("/profiles/me");
+    let response = self.client.get(&url).headers(self.auth_headers()).send()?;
+    Self::handle_response(response)
+}
+```
+
+<ParamField path="get_my_profile" type="fn(&self) -> Result<Profile>">
+  Get the currently authenticated user's profile.
+  
+  **Returns:** `Result<Profile>`
+  
+  **API Endpoint:** `GET /api/v1/profiles/me`
+  
+  **Errors:** Returns `RcApiError::AuthenticationFailed` if not authenticated
+</ParamField>
+
+### Example
+
+```rust
+let my_profile = client.get_my_profile()?;
+println!("Hello, {}!", my_profile.name);
+println!("Your email: {}", my_profile.email);
+```
+
+## Working with Profile Data
+
+### Accessing Stints
+
+```rust
+let profile = client.get_profile_by_id(12345)?;
+
+for stint in &profile.stints {
+    if let Some(batch) = &stint.batch {
+        println!("Batch: {}", batch.name);
+        println!("Type: {}", stint.stint_type);
+        println!("Start: {}", stint.start_date);
+    }
+}
+```
+
+### Checking for Profile Photo
+
+```rust src/main.rs:370-371
+let has_photo = !profile.image_path.is_empty()
+    && !profile.image_path.contains("missing");
+```
+
+### Building Profile URL
+
+```rust src/main.rs:244-247
+let profile_url = format!(
+    "https://www.recurse.com/directory/{}",
+    profile.slug
+);
+```
+
+## Profile Search Fields
+
+When using the `query` parameter, the API searches across multiple fields:
+
+- Name
+- Bio
+- Before RC
+- During RC
+- Interests
+- Employer info
+- GitHub username
+- Skills and projects
+
+Matches are indicated by the `*_match` and `*_hl` (highlighted) fields in the response.
+
+### Example: Checking Search Matches
+
+```rust
+let profiles = client.search_profiles(ProfileSearchParams {
+    query: Some("machine learning".to_string()),
+    ..Default::default()
+})?;
+
+for profile in profiles {
+    if profile.bio_match == Some(true) {
+        println!("Match in bio: {:?}", profile.bio_hl);
+    }
+    if profile.interests_match == Some(true) {
+        println!("Match in interests: {:?}", profile.interests_hl);
+    }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Batches" icon="users" href="/api/batches">
+    Work with batch data
+  </Card>
+  
+  <Card title="Locations" icon="map-pin" href="/api/locations">
+    Search for locations
+  </Card>
+  
+  <Card title="Error Handling" icon="triangle-exclamation" href="/api/error-handling">
+    Handle API errors
+  </Card>
+</CardGroup>

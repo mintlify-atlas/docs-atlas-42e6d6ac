@@ -1,0 +1,455 @@
+---
+title: 'Error Handling'
+description: 'Handle API errors gracefully'
+---
+
+The RC API Client uses a custom error type to represent different kinds of API errors. Understanding these errors helps you build robust applications.
+
+## RcApiError Enum
+
+All API methods return a `Result<T, RcApiError>` type:
+
+```rust src/rc_api.rs:12-30
+#[derive(Debug, Error)]
+pub enum RcApiError {
+    #[error("HTTP request failed: {0}")]
+    RequestFailed(#[from] reqwest::Error),
+
+    #[error("Authentication failed")]
+    AuthenticationFailed,
+
+    #[error("Resource not found")]
+    NotFound,
+
+    #[error("Bad request: {0}")]
+    BadRequest(String),
+
+    #[error("API error: {0}")]
+    ApiError(String),
+}
+
+pub type Result<T> = std::result::Result<T, RcApiError>;
+```
+
+<ResponseField name="RcApiError" type="enum">
+  Error types returned by the API client.
+  
+  <Expandable title="Variants">
+    <ResponseField name="RequestFailed" type="RequestFailed(reqwest::Error)">
+      HTTP request failed (network error, timeout, etc.)
+      
+      **Common causes:**
+      - Network connectivity issues
+      - DNS resolution failures
+      - Connection timeouts
+      - SSL/TLS errors
+    </ResponseField>
+    
+    <ResponseField name="AuthenticationFailed" type="AuthenticationFailed">
+      Authentication failed (HTTP 401)
+      
+      **Common causes:**
+      - Invalid bearer token
+      - Invalid email/password combination
+      - Expired token
+      - Missing authentication credentials
+    </ResponseField>
+    
+    <ResponseField name="NotFound" type="NotFound">
+      Resource not found (HTTP 404)
+      
+      **Common causes:**
+      - Profile, batch, or hub visit doesn't exist
+      - Invalid ID or email address
+      - Wrong endpoint URL
+    </ResponseField>
+    
+    <ResponseField name="BadRequest" type="BadRequest(String)">
+      Bad request (HTTP 400) with error message
+      
+      **Common causes:**
+      - Invalid query parameters
+      - Malformed request body
+      - Missing required fields
+      - Invalid date format
+    </ResponseField>
+    
+    <ResponseField name="ApiError" type="ApiError(String)">
+      Generic API error with custom message
+      
+      **Common causes:**
+      - Other HTTP errors (500, 503, etc.)
+      - JSON deserialization failures
+      - Unexpected API responses
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Error Status Codes
+
+The client maps HTTP status codes to error types:
+
+```rust src/rc_api.rs:741-748
+fn error_from_status(status: reqwest::StatusCode) -> RcApiError {
+    match status.as_u16() {
+        401 => RcApiError::AuthenticationFailed,
+        404 => RcApiError::NotFound,
+        400 => RcApiError::BadRequest("Bad request".to_string()),
+        _ => RcApiError::ApiError(format!("HTTP {}", status)),
+    }
+}
+```
+
+<ParamField path="HTTP Status Codes" type="mapping">
+  <Expandable title="Status Code Mapping">
+    <ParamField path="401" type="AuthenticationFailed">
+      Unauthorized - invalid or missing authentication
+    </ParamField>
+    
+    <ParamField path="404" type="NotFound">
+      Not Found - resource doesn't exist
+    </ParamField>
+    
+    <ParamField path="400" type="BadRequest">
+      Bad Request - invalid parameters or request body
+    </ParamField>
+    
+    <ParamField path="500, 502, 503, etc." type="ApiError">
+      Server errors - service unavailable or internal error
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+## Basic Error Handling
+
+### Using match
+
+```rust
+use rc_api::{RcApiClient, RcApiError};
+
+let client = RcApiClient::new(token)?;
+
+match client.get_profile_by_id(12345) {
+    Ok(profile) => {
+        println!("Found: {}", profile.name);
+    }
+    Err(RcApiError::NotFound) => {
+        eprintln!("Profile not found");
+    }
+    Err(RcApiError::AuthenticationFailed) => {
+        eprintln!("Invalid token - please check your credentials");
+    }
+    Err(e) => {
+        eprintln!("Error: {}", e);
+    }
+}
+```
+
+### Using if let
+
+```rust
+let result = client.get_my_profile();
+
+if let Err(RcApiError::AuthenticationFailed) = result {
+    eprintln!("Authentication failed - your token may be invalid");
+    std::process::exit(1);
+}
+
+let profile = result?;
+```
+
+### Using ?
+
+```rust
+fn get_profile_info(client: &RcApiClient, id: u32) -> Result<String, RcApiError> {
+    let profile = client.get_profile_by_id(id)?;
+    Ok(format!("{} <{}>", profile.name, profile.email))
+}
+```
+
+## Common Error Patterns
+
+### Handle Not Found Gracefully
+
+```rust
+use rc_api::RcApiError;
+
+fn find_profile_by_email(
+    client: &RcApiClient,
+    email: &str,
+) -> Result<Option<Profile>, RcApiError> {
+    match client.get_profile_by_email(email) {
+        Ok(profile) => Ok(Some(profile)),
+        Err(RcApiError::NotFound) => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
+// Usage
+match find_profile_by_email(&client, "user@example.com")? {
+    Some(profile) => println!("Found: {}", profile.name),
+    None => println!("No profile found with that email"),
+}
+```
+
+### Retry on Network Errors
+
+```rust
+use std::thread;
+use std::time::Duration;
+
+fn get_profile_with_retry(
+    client: &RcApiClient,
+    id: u32,
+    max_retries: u32,
+) -> Result<Profile, RcApiError> {
+    let mut attempts = 0;
+    
+    loop {
+        match client.get_profile_by_id(id) {
+            Ok(profile) => return Ok(profile),
+            Err(RcApiError::RequestFailed(_)) if attempts < max_retries => {
+                attempts += 1;
+                eprintln!("Request failed, retrying ({}/{})...", attempts, max_retries);
+                thread::sleep(Duration::from_secs(2u64.pow(attempts)));
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
+```
+
+### Validate Before API Call
+
+```rust
+use chrono::NaiveDate;
+
+fn validate_and_get_hub_visit(
+    client: &RcApiClient,
+    person_id: u32,
+    date: NaiveDate,
+) -> Result<HubVisit, String> {
+    // Validate date isn't in the future
+    if date > chrono::Utc::now().date_naive() {
+        return Err("Date cannot be in the future".to_string());
+    }
+    
+    // Make API call
+    client.get_hub_visit(person_id, date)
+        .map_err(|e| format!("API error: {}", e))
+}
+```
+
+### Handle Authentication Errors
+
+```rust
+fn authenticate_and_get_profile(
+    token: &str,
+) -> Result<Profile, Box<dyn std::error::Error>> {
+    let client = RcApiClient::new(token.to_string())?;
+    
+    match client.get_my_profile() {
+        Ok(profile) => Ok(profile),
+        Err(RcApiError::AuthenticationFailed) => {
+            eprintln!("❌ Authentication failed!");
+            eprintln!("Your token may be invalid or expired.");
+            eprintln!("Get a new token from: https://www.recurse.com/settings/apps");
+            Err("Authentication failed".into())
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+```
+
+## Error Messages
+
+The `RcApiError` enum implements `Display` for user-friendly error messages:
+
+```rust
+let result = client.get_profile_by_id(12345);
+
+if let Err(e) = result {
+    // These all produce user-friendly messages:
+    eprintln!("Error: {}", e);  // "Resource not found"
+    eprintln!("Error: {:?}", e); // "NotFound"
+    println!("{}", e.to_string()); // "Resource not found"
+}
+```
+
+### Example Error Messages
+
+```
+HTTP request failed: connection timeout
+Authentication failed
+Resource not found
+Bad request: Invalid date format
+API error: HTTP 503
+```
+
+## Response Handling
+
+The client handles response deserialization with detailed error messages:
+
+```rust src/rc_api.rs:721-739
+fn handle_response<T: for<'de> Deserialize<'de>>(
+    response: reqwest::blocking::Response,
+) -> Result<T> {
+    let status = response.status();
+    
+    if status.is_success() {
+        // Get the response text first for better error messages
+        let text = response.text()?;
+        
+        // Try to deserialize, providing helpful error message on failure
+        serde_json::from_str(&text).map_err(|e| {
+            eprintln!("Failed to deserialize response. Error: {}", e);
+            eprintln!("Response body:\n{}", text);
+            RcApiError::ApiError(format!("JSON deserialization failed: {}", e))
+        })
+    } else {
+        Err(Self::error_from_status(status))
+    }
+}
+```
+
+<Note>
+When JSON deserialization fails, the error message includes both the serde error and the raw response body for debugging.
+</Note>
+
+## Real-World Example
+
+From the RC VCF Generator:
+
+```rust src/main.rs:347-397
+loop {
+    progress.print_status(&format!(
+        "Fetching batch {} (profiles {}-{})...",
+        batch_count,
+        offset,
+        offset + limit
+    ));
+    
+    let response = client.search_profiles(ProfileSearchParams {
+        limit: Some(limit),
+        offset: Some(offset),
+        ..Default::default()
+    });
+    
+    match response {
+        Ok(profiles) => {
+            if profiles.is_empty() {
+                progress.print_success(&format!(
+                    "Fetched all {} profiles in {} batches",
+                    total_count, batch_count - 1
+                ));
+                break;
+            }
+            
+            // Process profiles...
+            total_count += count;
+            offset += count as u32;
+        }
+        Err(e) => {
+            progress.print_error(&format!("Error fetching batch {}: {}", batch_count, e));
+            progress.print_info("Retrying in 5 seconds...");
+            std::thread::sleep(std::time::Duration::from_secs(5));
+            batch_count -= 1; // Don't count failed batch
+        }
+    }
+}
+```
+
+## Best Practices
+
+### 1. Always Handle Errors
+
+```rust
+// ❌ Bad - panics on error
+let profile = client.get_profile_by_id(12345).unwrap();
+
+// ✅ Good - handles error gracefully
+let profile = client.get_profile_by_id(12345)
+    .map_err(|e| eprintln!("Failed to get profile: {}", e))?;
+```
+
+### 2. Provide Context
+
+```rust
+let profile = client.get_profile_by_id(person_id)
+    .map_err(|e| format!("Failed to get profile {}: {}", person_id, e))?;
+```
+
+### 3. Use Specific Error Matching
+
+```rust
+// ✅ Good - handles specific errors
+match client.get_profile_by_email(email) {
+    Ok(profile) => process_profile(profile),
+    Err(RcApiError::NotFound) => create_new_profile(email),
+    Err(RcApiError::AuthenticationFailed) => handle_auth_error(),
+    Err(e) => log_error(e),
+}
+```
+
+### 4. Log Errors Appropriately
+
+```rust
+use log::{error, warn};
+
+match client.search_profiles(params) {
+    Ok(profiles) => profiles,
+    Err(RcApiError::AuthenticationFailed) => {
+        error!("Authentication failed - check token");
+        return Err("auth_failed".into());
+    }
+    Err(RcApiError::RequestFailed(e)) => {
+        warn!("Network error: {}, retrying...", e);
+        // retry logic
+    }
+    Err(e) => {
+        error!("Unexpected error: {}", e);
+        return Err(e.into());
+    }
+}
+```
+
+## Error Testing
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_not_found_error() {
+        let client = RcApiClient::new(valid_token()).unwrap();
+        let result = client.get_profile_by_id(99999999);
+        
+        assert!(matches!(result, Err(RcApiError::NotFound)));
+    }
+    
+    #[test]
+    fn test_auth_error() {
+        let client = RcApiClient::new("invalid_token".to_string()).unwrap();
+        let result = client.get_my_profile();
+        
+        assert!(matches!(result, Err(RcApiError::AuthenticationFailed)));
+    }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/api/authentication">
+    Handle authentication errors
+  </Card>
+  
+  <Card title="Profiles" icon="user" href="/api/profiles">
+    Handle profile-related errors
+  </Card>
+  
+  <Card title="Overview" icon="book" href="/api/overview">
+    Back to API overview
+  </Card>
+</CardGroup>

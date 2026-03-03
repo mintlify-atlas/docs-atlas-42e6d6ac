@@ -1,0 +1,556 @@
+---
+title: Data Types
+description: Complete reference for all data structures used in RC VCF Generator
+---
+
+This page documents all the data structures returned by the Recurse Center API and used throughout the application.
+
+## Core Types
+
+### Profile
+
+The main data structure representing a Recurser's profile information.
+
+<ResponseField name="id" type="u32" required>
+  Unique identifier for the profile
+</ResponseField>
+
+<ResponseField name="first_name" type="String" required>
+  Recurser's first name
+</ResponseField>
+
+<ResponseField name="last_name" type="String" required>
+  Recurser's last name
+</ResponseField>
+
+<ResponseField name="name" type="String" required>
+  Full name
+</ResponseField>
+
+<ResponseField name="name_hl" type="String" required>
+  Full name with search highlights
+</ResponseField>
+
+<ResponseField name="email" type="String" required>
+  Email address
+</ResponseField>
+
+<ResponseField name="github" type="Option<String>">
+  GitHub username (without @ prefix)
+</ResponseField>
+
+<ResponseField name="employer_role" type="Option<String>">
+  Current job title or role
+</ResponseField>
+
+<ResponseField name="twitter" type="Option<String>">
+  Twitter/X username (without @ prefix)
+</ResponseField>
+
+<ResponseField name="pronouns" type="Option<String>">
+  Preferred pronouns (e.g., "she/her", "he/him", "they/them")
+</ResponseField>
+
+<ResponseField name="unformatted_phone_number" type="Option<String>">
+  Phone number in original format
+</ResponseField>
+
+<ResponseField name="phone_number" type="Option<String>">
+  Formatted phone number
+</ResponseField>
+
+<ResponseField name="zoom_url" type="Option<String>">
+  Personal Zoom meeting URL
+</ResponseField>
+
+<ResponseField name="zulip_id" type="Option<u32>">
+  Zulip user ID
+</ResponseField>
+
+<ResponseField name="personal_site_url" type="Option<String>">
+  Personal website URL
+</ResponseField>
+
+<ResponseField name="blog_url" type="Option<String>">
+  Blog URL
+</ResponseField>
+
+<ResponseField name="cluster_username" type="Option<String>">
+  RC cluster username
+</ResponseField>
+
+<ResponseField name="linkedin" type="Option<String>">
+  LinkedIn profile URL or username
+</ResponseField>
+
+<ResponseField name="image_path" type="String" required>
+  Path to profile image (may contain "missing" for default avatar)
+</ResponseField>
+
+<ResponseField name="slug" type="String" required>
+  URL-friendly identifier for the profile
+</ResponseField>
+
+<ResponseField name="joy_of_computing_username" type="Option<String>">
+  Joy of Computing username
+</ResponseField>
+
+<ResponseField name="current_location" type="Option<Location>">
+  Current geographic location
+</ResponseField>
+
+<ResponseField name="stints" type="Vec<Stint>" default="[]">
+  List of RC stints (batches attended)
+</ResponseField>
+
+<ResponseField name="company" type="Option<Company>">
+  Current employer information
+</ResponseField>
+
+<Accordion title="Profile HTML Fields">
+  The Profile struct includes numerous rendered HTML and search highlight fields for different sections:
+
+  <ResponseField name="bio_rendered" type="Option<String>">
+    Bio as rendered HTML
+  </ResponseField>
+
+  <ResponseField name="bio_match" type="Option<bool>">
+    Whether bio matched search query
+  </ResponseField>
+
+  <ResponseField name="bio_hl" type="Option<String>">
+    Bio with search highlights
+  </ResponseField>
+
+  <ResponseField name="bio_truncated" type="Option<String>">
+    Truncated bio for previews
+  </ResponseField>
+
+  Similar fields exist for:
+  - `before_rc_*` - What they did before RC
+  - `during_rc_*` - What they did during RC
+  - `interests_*` - Interests and hobbies
+  - `zulip_intro_*` - Zulip introduction
+  - `employer_info_*` - Employer information
+  - `github_*` - GitHub information
+  - `phone_number_*` - Phone number
+  - `email_*` - Email
+
+  <ResponseField name="results_count" type="Option<u32>">
+    Number of search results (when searching)
+  </ResponseField>
+</Accordion>
+
+---
+
+### Batch
+
+Information about an RC batch (cohort).
+
+<ResponseField name="id" type="u32" required>
+  Unique identifier for the batch
+</ResponseField>
+
+<ResponseField name="name" type="String" required>
+  Full batch name (e.g., "Winter 1 2024")
+</ResponseField>
+
+<ResponseField name="short_name" type="Option<String>">
+  Abbreviated batch name (e.g., "W1'24")
+</ResponseField>
+
+<ResponseField name="alt_name" type="Option<String>">
+  Alternative batch name
+</ResponseField>
+
+<ResponseField name="start_date" type="Option<String>">
+  Batch start date (ISO 8601 format)
+</ResponseField>
+
+<ResponseField name="end_date" type="Option<String>">
+  Batch end date (ISO 8601 format)
+</ResponseField>
+
+---
+
+### Location
+
+Geographic location information.
+
+<ResponseField name="id" type="u32" required>
+  Unique identifier for the location
+</ResponseField>
+
+<ResponseField name="name" type="String" required>
+  Location name (e.g., "Brooklyn, NY, USA")
+</ResponseField>
+
+<ResponseField name="short_name" type="Option<String>">
+  Abbreviated location name
+</ResponseField>
+
+<ResponseField name="location_type" type="Option<String>">
+  Type of location (city, state, country, etc.)
+  
+  <Note>Serialized as `type` in JSON</Note>
+</ResponseField>
+
+<ResponseField name="ascii_name" type="Option<String>">
+  ASCII-safe version of the location name
+</ResponseField>
+
+---
+
+### Company
+
+Employer information.
+
+<ResponseField name="id" type="u32" required>
+  Unique identifier for the company
+</ResponseField>
+
+<ResponseField name="name" type="String" required>
+  Company name
+</ResponseField>
+
+---
+
+### Stint
+
+Information about a Recurser's time at RC.
+
+<ResponseField name="id" type="u32" required>
+  Unique identifier for the stint
+</ResponseField>
+
+<ResponseField name="stint_type" type="String" required>
+  Type of stint (e.g., "retreat", "residency")
+  
+  <Note>Serialized as `type` in JSON</Note>
+</ResponseField>
+
+<ResponseField name="title" type="Option<String>">
+  Title or description of the stint
+</ResponseField>
+
+<ResponseField name="for_half_batch" type="bool" required>
+  Whether this was a half-batch stint
+</ResponseField>
+
+<ResponseField name="in_progress" type="bool" required>
+  Whether the stint is currently in progress
+</ResponseField>
+
+<ResponseField name="start_date" type="String" required>
+  Start date (ISO 8601 format)
+</ResponseField>
+
+<ResponseField name="end_date" type="Option<String>">
+  End date (ISO 8601 format, null if in progress)
+</ResponseField>
+
+<ResponseField name="batch" type="Option<Batch>">
+  Associated batch information
+</ResponseField>
+
+---
+
+### HubVisit
+
+Information about a visit to the RC hub.
+
+<ResponseField name="person" type="PersonInfo" required>
+  Information about the person who visited
+</ResponseField>
+
+<ResponseField name="date" type="String" required>
+  Visit date (ISO 8601 format)
+</ResponseField>
+
+<ResponseField name="app_data" type="serde_json::Value" default="null">
+  Application-specific data (arbitrary JSON)
+</ResponseField>
+
+<ResponseField name="notes" type="String" default="''">
+  Notes about the visit
+</ResponseField>
+
+<ResponseField name="created_at" type="String" required>
+  Timestamp when the record was created
+</ResponseField>
+
+<ResponseField name="updated_at" type="String" required>
+  Timestamp when the record was last updated
+</ResponseField>
+
+<ResponseField name="created_by_app" type="Option<String>">
+  Application that created the record
+</ResponseField>
+
+<ResponseField name="updated_by_app" type="Option<String>">
+  Application that last updated the record
+</ResponseField>
+
+---
+
+### PersonInfo
+
+Basic person identification.
+
+<ResponseField name="id" type="u32" required>
+  Unique identifier for the person
+</ResponseField>
+
+<ResponseField name="name" type="String" required>
+  Person's full name
+</ResponseField>
+
+---
+
+### Token
+
+Personal access token information.
+
+<ResponseField name="id" type="u32" required>
+  Unique identifier for the token
+</ResponseField>
+
+<ResponseField name="token" type="String" required>
+  The actual token string
+</ResponseField>
+
+<ResponseField name="description" type="String" required>
+  Human-readable description of the token's purpose
+</ResponseField>
+
+<ResponseField name="last_used_at" type="Option<String>">
+  Timestamp of last token usage
+</ResponseField>
+
+---
+
+## Deprecated Types
+
+<Warning>
+  The following types are deprecated and maintained only for backward compatibility. Use the Profile API types instead.
+</Warning>
+
+### Person (Deprecated)
+
+Older person data structure from the deprecated People API.
+
+<ResponseField name="id" type="u32" required>
+  Unique identifier
+</ResponseField>
+
+<ResponseField name="first_name" type="String" required>
+  First name
+</ResponseField>
+
+<ResponseField name="middle_name" type="Option<String>">
+  Middle name
+</ResponseField>
+
+<ResponseField name="last_name" type="String" required>
+  Last name
+</ResponseField>
+
+<ResponseField name="email" type="String" required>
+  Email address
+</ResponseField>
+
+<ResponseField name="twitter" type="Option<String>">
+  Twitter username
+</ResponseField>
+
+<ResponseField name="github" type="Option<String>">
+  GitHub username
+</ResponseField>
+
+<ResponseField name="batch_id" type="Option<u32>">
+  Primary batch ID
+</ResponseField>
+
+<ResponseField name="phone_number" type="Option<String>">
+  Phone number
+</ResponseField>
+
+<ResponseField name="has_photo" type="bool" required>
+  Whether a profile photo exists
+</ResponseField>
+
+<ResponseField name="interests" type="Option<String>">
+  Interests description
+</ResponseField>
+
+<ResponseField name="before_rc" type="Option<String>">
+  What they did before RC
+</ResponseField>
+
+<ResponseField name="during_rc" type="Option<String>">
+  What they did during RC
+</ResponseField>
+
+<ResponseField name="is_faculty" type="bool" required>
+  Whether the person is RC faculty
+</ResponseField>
+
+<ResponseField name="is_hacker_schooler" type="bool" required>
+  Whether the person is a Recurser
+</ResponseField>
+
+<ResponseField name="job" type="Option<String>">
+  Job title
+</ResponseField>
+
+<ResponseField name="image" type="String" required>
+  Profile image URL
+</ResponseField>
+
+<ResponseField name="batch" type="Option<Batch>">
+  Primary batch information
+</ResponseField>
+
+<ResponseField name="pseudonym" type="Option<String>">
+  Pseudonym or preferred name
+</ResponseField>
+
+<ResponseField name="current_location" type="Option<Location>">
+  Current location
+</ResponseField>
+
+<ResponseField name="stints" type="Vec<DeprecatedStint>" default="[]">
+  List of stints (deprecated format)
+</ResponseField>
+
+<ResponseField name="batches" type="Vec<Batch>" default="[]">
+  All batches attended
+</ResponseField>
+
+<ResponseField name="projects" type="Vec<serde_json::Value>" default="[]">
+  Project information (arbitrary JSON)
+</ResponseField>
+
+<ResponseField name="links" type="Vec<serde_json::Value>" default="[]">
+  Link information (arbitrary JSON)
+</ResponseField>
+
+<ResponseField name="skills" type="Vec<serde_json::Value>" default="[]">
+  Skill information (arbitrary JSON)
+</ResponseField>
+
+<ResponseField name="bio" type="Option<String>">
+  Biography text
+</ResponseField>
+
+---
+
+### DeprecatedStint
+
+Older stint format from the deprecated People API.
+
+<ResponseField name="batch_id" type="Option<u32>">
+  Associated batch ID
+</ResponseField>
+
+<ResponseField name="start_date" type="String" required>
+  Start date
+</ResponseField>
+
+<ResponseField name="end_date" type="Option<String>">
+  End date
+</ResponseField>
+
+<ResponseField name="stint_type" type="String" required>
+  Type of stint
+  
+  <Note>Serialized as `type` in JSON</Note>
+</ResponseField>
+
+---
+
+## Query Parameter Types
+
+### ProfileSearchParams
+
+Parameters for searching profiles.
+
+<ParamField path="query" type="Option<String>">
+  Search query string
+</ParamField>
+
+<ParamField path="batch_id" type="Option<u32>">
+  Filter by batch ID
+</ParamField>
+
+<ParamField path="location_id" type="Option<u32>">
+  Filter by location ID
+</ParamField>
+
+<ParamField path="role" type="Option<String>">
+  Filter by role
+</ParamField>
+
+<ParamField path="scope" type="Option<String>">
+  Search scope
+</ParamField>
+
+<ParamField path="limit" type="Option<u32>">
+  Maximum number of results to return
+</ParamField>
+
+<ParamField path="offset" type="Option<u32>">
+  Number of results to skip (for pagination)
+</ParamField>
+
+### LocationSearchParams
+
+Parameters for searching locations.
+
+<ParamField path="query" type="String" required>
+  Location search query
+</ParamField>
+
+<ParamField path="limit" type="Option<u32>">
+  Maximum number of results
+</ParamField>
+
+### HubVisitQueryParams
+
+Parameters for querying hub visits.
+
+<ParamField path="date" type="Option<NaiveDate>">
+  Specific date to query
+</ParamField>
+
+<ParamField path="start_date" type="Option<NaiveDate>">
+  Start of date range
+</ParamField>
+
+<ParamField path="end_date" type="Option<NaiveDate>">
+  End of date range
+</ParamField>
+
+<ParamField path="person_id" type="Option<u32>">
+  Filter by person ID
+</ParamField>
+
+<ParamField path="page" type="Option<u32>">
+  Page number for pagination
+</ParamField>
+
+<ParamField path="per_page" type="Option<u32>">
+  Results per page
+</ParamField>
+
+### HubVisitUpdate
+
+Data for updating a hub visit.
+
+<ParamField path="notes" type="Option<String>">
+  Updated notes
+</ParamField>
+
+<ParamField path="app_data" type="Option<serde_json::Value>">
+  Updated application data (arbitrary JSON)
+</ParamField>

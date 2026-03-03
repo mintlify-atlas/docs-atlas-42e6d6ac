@@ -1,0 +1,284 @@
+---
+title: Configuration
+description: Environment variables and API client configuration options
+---
+
+This page documents all configuration options for the RC VCF Generator.
+
+## Environment Variables
+
+### RECURSE_PAT
+
+<ParamField path="RECURSE_PAT" type="String" required>
+  Personal Access Token for authenticating with the Recurse Center API
+</ParamField>
+
+The application requires a valid Recurse Center Personal Access Token to access the API. This token must be set as an environment variable before running the application.
+
+<CodeGroup>
+```bash .env file
+RECURSE_PAT=your_token_here
+```
+
+```bash Shell export
+export RECURSE_PAT=your_token_here
+```
+
+```bash Inline
+RECURSE_PAT=your_token_here cargo run
+```
+</CodeGroup>
+
+<Warning>
+  Keep your Personal Access Token secure! Never commit it to version control or share it publicly.
+</Warning>
+
+<Info>
+  The application uses the `dotenv` crate to automatically load environment variables from a `.env` file in the project root.
+</Info>
+
+### Getting a Personal Access Token
+
+<Steps>
+  <Step title="Log in to Recurse Center">
+    Navigate to [www.recurse.com](https://www.recurse.com) and log in to your account.
+  </Step>
+  
+  <Step title="Access Settings">
+    Go to your account settings page.
+  </Step>
+  
+  <Step title="Generate Token">
+    Find the "Personal Access Tokens" section and create a new token with an appropriate description (e.g., "VCF Generator").
+  </Step>
+  
+  <Step title="Copy and Save">
+    Copy the generated token immediately and save it in your `.env` file. You won't be able to see it again!
+  </Step>
+</Steps>
+
+---
+
+## API Client Configuration
+
+The `RcApiClient` provides several configuration options for customizing its behavior.
+
+### Base URL
+
+By default, the API client connects to the production Recurse Center API:
+
+```rust
+const BASE_URL: &str = "https://www.recurse.com";
+const API_VERSION: &str = "v1";
+```
+
+Full API URLs are constructed as: `{BASE_URL}/api/{API_VERSION}/{endpoint}`
+
+For example: `https://www.recurse.com/api/v1/profiles`
+
+### Custom Base URL
+
+You can customize the base URL for testing or development purposes using the `with_base_url()` method:
+
+```rust
+use rc_api::RcApiClient;
+
+let client = RcApiClient::new("your_token".to_string())
+    .expect("Failed to create client")
+    .with_base_url("https://api.staging.recurse.com".to_string());
+```
+
+<Accordion title="Example: Local API Testing">
+  If you're running a local mock of the Recurse Center API for testing:
+
+  ```rust
+  let client = RcApiClient::new(token)
+      .expect("Failed to create client")
+      .with_base_url("http://localhost:8080".to_string());
+  
+  // API calls will now go to http://localhost:8080/api/v1/*
+  let profile = client.get_my_profile()?;
+  ```
+</Accordion>
+
+---
+
+## Authentication Configuration
+
+The API client supports two authentication methods:
+
+### Bearer Token Authentication (Recommended)
+
+Used for Personal Access Tokens:
+
+```rust
+use rc_api::{RcApiClient, Authentication};
+
+// Method 1: Using the convenience constructor
+let client = RcApiClient::new("your_pat_token".to_string())?;
+
+// Method 2: Using explicit authentication
+let auth = Authentication::Bearer("your_pat_token".to_string());
+let client = RcApiClient::with_auth(auth)?;
+```
+
+<Info>
+  Bearer token authentication is the recommended method and is what the main application uses (via the `RECURSE_PAT` environment variable).
+</Info>
+
+### Basic Authentication
+
+Used for email/password combinations (primarily for creating new tokens):
+
+```rust
+use rc_api::{RcApiClient, Authentication};
+
+// Method 1: Using the convenience constructor
+let client = RcApiClient::with_basic_auth(
+    "your@email.com".to_string(),
+    "your_password".to_string()
+)?;
+
+// Method 2: Using explicit authentication
+let auth = Authentication::Basic {
+    email: "your@email.com".to_string(),
+    password: "your_password".to_string(),
+};
+let client = RcApiClient::with_auth(auth)?;
+```
+
+<Warning>
+  Basic authentication should only be used when creating new Personal Access Tokens. For all other operations, use bearer token authentication.
+</Warning>
+
+---
+
+## HTTP Client Configuration
+
+### User Agent
+
+The API client automatically sets a user agent header:
+
+```rust
+Client::builder()
+    .user_agent("rc-vcf/0.1.0")
+    .build()?;
+```
+
+This helps the Recurse Center API identify requests from this application.
+
+### Request Headers
+
+All API requests include an `Authorization` header based on the authentication method:
+
+```http
+# Bearer token
+Authorization: Bearer your_token_here
+
+# Basic auth
+Authorization: Basic base64_encoded_credentials
+```
+
+---
+
+## Application Configuration
+
+### Pagination Settings
+
+The main application uses these default pagination settings when fetching profiles:
+
+```rust
+let limit = 50;  // Profiles per request
+let mut offset = 0;  // Starting position
+```
+
+The application automatically handles pagination by:
+1. Fetching batches of 50 profiles
+2. Processing each batch
+3. Incrementing the offset
+4. Repeating until no more profiles are returned
+
+<Info>
+  You can modify these values in `main.rs` if you need different batch sizes for performance tuning.
+</Info>
+
+### Retry Configuration
+
+When an API request fails, the application:
+1. Prints an error message
+2. Waits 5 seconds
+3. Retries the request
+
+```rust
+Err(e) => {
+    progress.print_error(&format!("Error fetching batch {}: {}", batch_count, e));
+    progress.print_info("Retrying in 5 seconds...");
+    std::thread::sleep(std::time::Duration::from_secs(5));
+    batch_count -= 1; // Don't count failed batch
+}
+```
+
+<Accordion title="Customizing Retry Behavior">
+  To customize retry behavior, modify the error handling in `main.rs`:
+
+  ```rust
+  use std::time::Duration;
+
+  // Custom retry delay
+  let retry_delay = Duration::from_secs(10);
+  
+  // Maximum retry attempts
+  let max_retries = 3;
+  let mut retry_count = 0;
+  
+  loop {
+      match client.search_profiles(params) {
+          Ok(profiles) => {
+              // Success - reset retry counter
+              retry_count = 0;
+              // Process profiles...
+          }
+          Err(e) => {
+              retry_count += 1;
+              if retry_count >= max_retries {
+                  eprintln!("Max retries exceeded, aborting");
+                  break;
+              }
+              eprintln!("Retrying ({}/{})...", retry_count, max_retries);
+              std::thread::sleep(retry_delay);
+          }
+      }
+  }
+  ```
+</Accordion>
+
+---
+
+## Output Configuration
+
+### Output File Path
+
+By default, the VCF file is written to:
+
+```rust
+let output_path = "recursers.vcf";
+```
+
+This creates the file in the current working directory.
+
+<Accordion title="Customizing Output Path">
+  To change the output location, modify the `output_path` variable in `main.rs`:
+
+  ```rust
+  // Absolute path
+  let output_path = "/home/user/contacts/recursers.vcf";
+  
+  // Relative path with timestamp
+  let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+  let output_path = format!("recursers_{}.vcf", timestamp);
+  
+  // Environment variable
+  let output_path = std::env::var("VCF_OUTPUT_PATH")
+      .unwrap_or_else(|_| "recursers.vcf".to_string());
+  ```
+</Accordion>

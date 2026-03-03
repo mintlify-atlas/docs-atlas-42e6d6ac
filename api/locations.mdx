@@ -1,0 +1,302 @@
+---
+title: 'Locations'
+description: 'Search for geographic locations'
+---
+
+The Locations API allows you to search for geographic locations used in the RC system. Locations are used to filter profiles and represent where Recursers are based.
+
+## Location Struct
+
+The `Location` struct represents a geographic location:
+
+```rust src/rc_api.rs:37-47
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Location {
+    pub id: u32,
+    pub name: String,
+    #[serde(default)]
+    pub short_name: Option<String>,
+    #[serde(rename = "type", default)]
+    pub location_type: Option<String>,
+    #[serde(default)]
+    pub ascii_name: Option<String>,
+}
+```
+
+<ResponseField name="Location" type="struct">
+  Geographic location information.
+  
+  <Expandable title="Fields">
+    <ResponseField name="id" type="u32" required>
+      Unique identifier for the location
+    </ResponseField>
+    
+    <ResponseField name="name" type="String" required>
+      Location name (e.g., "New York, NY, USA")
+    </ResponseField>
+    
+    <ResponseField name="short_name" type="Option<String>">
+      Abbreviated location name (e.g., "NYC")
+    </ResponseField>
+    
+    <ResponseField name="location_type" type="Option<String>">
+      Type of location (e.g., "city", "country", "region")
+    </ResponseField>
+    
+    <ResponseField name="ascii_name" type="Option<String>">
+      ASCII-only version of the location name
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Search Locations
+
+Search for locations by query string.
+
+```rust src/rc_api.rs:542-559
+/// Search for locations
+pub fn search_locations(&self, params: LocationSearchParams) -> Result<Vec<Location>> {
+    let url = self.build_url("/locations");
+    let mut query_params = vec![("query", params.query)];
+    
+    if let Some(limit) = params.limit {
+        query_params.push(("limit", limit.to_string()));
+    }
+    
+    let response = self
+        .client
+        .get(&url)
+        .headers(self.auth_headers())
+        .query(&query_params)
+        .send()?;
+    
+    Self::handle_response(response)
+}
+```
+
+### LocationSearchParams
+
+```rust src/rc_api.rs:329-333
+#[derive(Debug, Default, Clone)]
+pub struct LocationSearchParams {
+    pub query: String,
+    pub limit: Option<u32>,
+}
+```
+
+<ParamField path="search_locations" type="fn(&self, LocationSearchParams) -> Result<Vec<Location>>">
+  Search for locations matching the query.
+  
+  **Parameters:**
+  <Expandable title="LocationSearchParams">
+    <ParamField path="query" type="String" required>
+      Search query string (searches location names)
+    </ParamField>
+    
+    <ParamField path="limit" type="Option<u32>">
+      Maximum number of results to return
+    </ParamField>
+  </Expandable>
+  
+  **Returns:** `Result<Vec<Location>>`
+  
+  **API Endpoint:** `GET /api/v1/locations?query={query}&limit={limit}`
+</ParamField>
+
+### Examples
+
+<CodeGroup>
+```rust Search by City
+use rc_api::{RcApiClient, LocationSearchParams};
+
+let client = RcApiClient::new(token)?;
+
+let locations = client.search_locations(LocationSearchParams {
+    query: "New York".to_string(),
+    limit: Some(10),
+})?;
+
+for location in locations {
+    println!(
+        "ID: {}, Name: {}, Type: {:?}",
+        location.id,
+        location.name,
+        location.location_type
+    );
+}
+```
+
+```rust Search by Country
+let locations = client.search_locations(LocationSearchParams {
+    query: "United Kingdom".to_string(),
+    limit: None,
+})?;
+
+println!("Found {} UK locations", locations.len());
+```
+
+```rust Find Specific Location
+let locations = client.search_locations(LocationSearchParams {
+    query: "San Francisco".to_string(),
+    limit: Some(1),
+})?;
+
+if let Some(sf) = locations.first() {
+    println!("San Francisco location ID: {}", sf.id);
+}
+```
+</CodeGroup>
+
+## Using Locations with Profiles
+
+Locations can be used to filter profile searches:
+
+```rust
+use rc_api::{LocationSearchParams, ProfileSearchParams};
+
+// First, find the location ID
+let locations = client.search_locations(LocationSearchParams {
+    query: "Brooklyn".to_string(),
+    limit: Some(1),
+})?;
+
+if let Some(brooklyn) = locations.first() {
+    // Then search for profiles in that location
+    let profiles = client.search_profiles(ProfileSearchParams {
+        location_id: Some(brooklyn.id),
+        ..Default::default()
+    })?;
+    
+    println!("Found {} Recursers in Brooklyn", profiles.len());
+}
+```
+
+## Location in Profiles
+
+Profiles include a `current_location` field:
+
+```rust
+let profile = client.get_profile_by_id(12345)?;
+
+if let Some(location) = &profile.current_location {
+    println!("{} is currently in {}", profile.name, location.name);
+    
+    if let Some(short_name) = &location.short_name {
+        println!("Short name: {}", short_name);
+    }
+}
+```
+
+## Common Use Cases
+
+### Find All Locations in a Region
+
+```rust
+let locations = client.search_locations(LocationSearchParams {
+    query: "California".to_string(),
+    limit: None,
+})?;
+
+println!("California locations:");
+for location in locations {
+    println!("  - {} (ID: {})", location.name, location.id);
+}
+```
+
+### Build a Location Selector
+
+```rust
+fn get_location_id(client: &RcApiClient, query: &str) -> Option<u32> {
+    let locations = client.search_locations(LocationSearchParams {
+        query: query.to_string(),
+        limit: Some(5),
+    }).ok()?;
+    
+    if locations.is_empty() {
+        println!("No locations found for: {}", query);
+        return None;
+    }
+    
+    println!("Select a location:");
+    for (i, loc) in locations.iter().enumerate() {
+        println!("  {}. {} (ID: {})", i + 1, loc.name, loc.id);
+    }
+    
+    // In a real app, you'd prompt the user to select
+    Some(locations[0].id)
+}
+```
+
+### Filter Profiles by Multiple Locations
+
+```rust
+let cities = vec!["New York", "San Francisco", "London"];
+let mut all_profiles = Vec::new();
+
+for city in cities {
+    let locations = client.search_locations(LocationSearchParams {
+        query: city.to_string(),
+        limit: Some(1),
+    })?;
+    
+    if let Some(location) = locations.first() {
+        let profiles = client.search_profiles(ProfileSearchParams {
+            location_id: Some(location.id),
+            ..Default::default()
+        })?;
+        
+        all_profiles.extend(profiles);
+    }
+}
+
+println!("Total profiles across all cities: {}", all_profiles.len());
+```
+
+## Location Search Tips
+
+<Note>
+The location search is flexible and searches across multiple fields including full names, short names, and ASCII names.
+</Note>
+
+### Search Strategies
+
+- **Specific cities**: "Brooklyn", "San Francisco", "London"
+- **States/Provinces**: "California", "Ontario", "New South Wales"
+- **Countries**: "United States", "Germany", "Japan"
+- **Partial matches**: "San" might return "San Francisco", "San Diego", etc.
+
+### Handling Results
+
+```rust
+let locations = client.search_locations(LocationSearchParams {
+    query: "San".to_string(),
+    limit: Some(20),
+})?;
+
+if locations.is_empty() {
+    println!("No locations found");
+} else if locations.len() == 1 {
+    println!("Found exact match: {}", locations[0].name);
+} else {
+    println!("Found {} possible matches:", locations.len());
+    for loc in &locations[..locations.len().min(5)] {
+        println!("  - {}", loc.name);
+    }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Profiles" icon="user" href="/api/profiles">
+    Use location filters in profile searches
+  </Card>
+  
+  <Card title="Batches" icon="users" href="/api/batches">
+    Work with batch data
+  </Card>
+  
+  <Card title="Error Handling" icon="triangle-exclamation" href="/api/error-handling">
+    Handle location search errors
+  </Card>
+</CardGroup>

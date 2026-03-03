@@ -1,0 +1,472 @@
+---
+title: 'Importing Contacts'
+description: 'How to import the generated VCF file into various contact managers'
+icon: 'file-import'
+---
+
+Once you've generated `recursers.vcf`, you can import it into any contact manager that supports the vCard format. This guide covers the most common platforms.
+
+## Overview
+
+The generated VCF file:
+- Contains **all Recursers** in a single file
+- Includes **embedded photos** (base64-encoded)
+- Follows the **vCard 3.0 specification**
+- Uses **unique IDs** (`recurser-{id}`) to prevent duplicates
+- Typically **40-50 MB** in size due to photos
+
+<Warning>
+  Before importing, consider backing up your existing contacts. While the unique IDs should prevent duplicates, it's always safer to have a backup.
+</Warning>
+
+## Import Instructions by Platform
+
+<Tabs>
+  <Tab title="iOS Contacts">
+    ### Method 1: AirDrop (Recommended)
+    
+    <Steps>
+      <Step title="Transfer the file">
+        AirDrop the `recursers.vcf` file from your computer to your iPhone or iPad.
+      </Step>
+      
+      <Step title="Open the file">
+        Tap the file when it appears in AirDrop. This will open it in the Contacts app.
+      </Step>
+      
+      <Step title="Import all contacts">
+        iOS will ask if you want to add all contacts. Tap **"Add All [number] Contacts"**.
+      </Step>
+      
+      <Step title="Wait for completion">
+        The import may take 1-2 minutes for thousands of contacts. Don't close the Contacts app during this time.
+      </Step>
+    </Steps>
+    
+    ### Method 2: Email
+    
+    <Steps>
+      <Step title="Email yourself the file">
+        Send `recursers.vcf` to an email address accessible on your iOS device.
+      </Step>
+      
+      <Step title="Open the attachment">
+        Open the email on your iPhone/iPad and tap the VCF attachment.
+      </Step>
+      
+      <Step title="Import">
+        Follow the same import flow as the AirDrop method.
+      </Step>
+    </Steps>
+    
+    ### Method 3: iCloud Sync
+    
+    If you use iCloud for contacts, you can import on your Mac and let it sync:
+    
+    <Steps>
+      <Step title="Open Contacts on Mac">
+        Launch the Contacts app on macOS.
+      </Step>
+      
+      <Step title="Import file">
+        Go to **File → Import...** and select `recursers.vcf`.
+      </Step>
+      
+      <Step title="Wait for sync">
+        iCloud will automatically sync the new contacts to all your devices.
+      </Step>
+    </Steps>
+    
+    <Info>
+      **Photos**: iOS preserves the embedded profile photos. They'll appear in your contact list and when making calls.
+    </Info>
+    
+    <Info>
+      **Categories**: The batch information stored in CATEGORIES fields can be viewed in the contact details but iOS doesn't support filtering by categories natively.
+    </Info>
+  </Tab>
+  
+  <Tab title="Google Contacts">
+    ### Web Interface
+    
+    <Steps>
+      <Step title="Open Google Contacts">
+        Navigate to [contacts.google.com](https://contacts.google.com).
+      </Step>
+      
+      <Step title="Access Import">
+        Click **Import** in the left sidebar.
+      </Step>
+      
+      <Step title="Select file">
+        Click **Select file** and choose `recursers.vcf` from your computer.
+      </Step>
+      
+      <Step title="Start import">
+        Click **Import** to begin the process.
+      </Step>
+      
+      <Step title="Wait for processing">
+        Google will display a progress indicator. Large files may take several minutes.
+      </Step>
+      
+      <Step title="Review results">
+        Google will show a summary of imported contacts. Review for any errors.
+      </Step>
+    </Steps>
+    
+    ### Using Google Workspace Admin
+    
+    If you're an admin importing for multiple users:
+    
+    <Steps>
+      <Step title="Access Admin Console">
+        Go to [admin.google.com](https://admin.google.com).
+      </Step>
+      
+      <Step title="Navigate to Directory">
+        **Directory → Users → [Select User] → User information → Contacts**
+      </Step>
+      
+      <Step title="Import contacts">
+        Use the import feature to upload the VCF file.
+      </Step>
+    </Steps>
+    
+    <Warning>
+      **File size limit**: Google Contacts has a 25 MB limit per import. If your VCF file is larger, you may need to split it into multiple files.
+    </Warning>
+    
+    ### Splitting Large Files
+    
+    If you encounter size limits, split the VCF file:
+    
+    ```bash
+    # Split every 500 contacts (adjust as needed)
+    csplit -f recursers- -n 2 recursers.vcf '/BEGIN:VCARD/' '{*}'
+    ```
+    
+    Or use this Python script:
+    
+    ```python
+    def split_vcf(filename, chunk_size=500):
+        with open(filename, 'r') as f:
+            content = f.read()
+        
+        vcards = content.split('BEGIN:VCARD')
+        vcards = ['BEGIN:VCARD' + v for v in vcards[1:]]  # Skip first empty
+        
+        for i in range(0, len(vcards), chunk_size):
+            chunk = vcards[i:i+chunk_size]
+            with open(f'recursers_part_{i//chunk_size + 1}.vcf', 'w') as f:
+                f.write(''.join(chunk))
+    
+    split_vcf('recursers.vcf')
+    ```
+    
+    <Info>
+      **Photos**: Google Contacts preserves embedded photos and displays them in the contact list.
+    </Info>
+    
+    <Info>
+      **Labels**: The social media URLs (GitHub, Twitter, LinkedIn) are preserved with their custom labels.
+    </Info>
+  </Tab>
+  
+  <Tab title="Outlook">
+    ### Outlook Desktop (Windows/Mac)
+    
+    <Steps>
+      <Step title="Open Outlook">
+        Launch the Outlook desktop application.
+      </Step>
+      
+      <Step title="Go to People">
+        Click the **People** icon in the bottom-left corner.
+      </Step>
+      
+      <Step title="Access Import">
+        Go to **File → Open & Export → Import/Export**.
+      </Step>
+      
+      <Step title="Choose import type">
+        Select **"Import a vCard file (.vcf)"** and click **Next**.
+      </Step>
+      
+      <Step title="Select file">
+        Browse to `recursers.vcf` and click **OK**.
+      </Step>
+      
+      <Step title="Wait for completion">
+        Outlook will process the file. This may take several minutes.
+      </Step>
+    </Steps>
+    
+    ### Outlook Web (Office 365)
+    
+    <Steps>
+      <Step title="Open Outlook Web">
+        Navigate to [outlook.office.com](https://outlook.office.com).
+      </Step>
+      
+      <Step title="Go to People">
+        Click the **People** icon (or app launcher → People).
+      </Step>
+      
+      <Step title="Manage contacts">
+        Click **Manage → Import contacts**.
+      </Step>
+      
+      <Step title="Upload file">
+        Choose **"From a file"** and upload `recursers.vcf`.
+      </Step>
+      
+      <Step title="Start import">
+        Click **Import** and wait for completion.
+      </Step>
+    </Steps>
+    
+    <Note>
+      **Multiple contacts**: Outlook may prompt you to import each contact individually if the file format isn't recognized correctly. This is rare with properly formatted vCard 3.0 files.
+    </Note>
+    
+    <Info>
+      **Categories**: The batch information in the CATEGORIES field will appear as contact categories in Outlook, allowing you to filter by batch.
+    </Info>
+  </Tab>
+  
+  <Tab title="macOS Contacts">
+    ### Import via Contacts App
+    
+    <Steps>
+      <Step title="Open Contacts">
+        Launch the Contacts app on macOS.
+      </Step>
+      
+      <Step title="Import file">
+        Go to **File → Import...** (or press Cmd+I).
+      </Step>
+      
+      <Step title="Select file">
+        Choose `recursers.vcf` and click **Open**.
+      </Step>
+      
+      <Step title="Wait for import">
+        The import happens in the background. You'll see new contacts appear gradually.
+      </Step>
+      
+      <Step title="Verify">
+        Once complete, search for a Recurser's name to verify the import succeeded.
+      </Step>
+    </Steps>
+    
+    ### Command Line Import
+    
+    For automation or scripting:
+    
+    ```bash
+    # Import to default contacts
+    contacts -i recursers.vcf
+    ```
+    
+    <Info>
+      **iCloud Sync**: If you have iCloud Contacts enabled, the imported contacts will automatically sync to your other Apple devices.
+    </Info>
+    
+    <Info>
+      **Photos**: macOS Contacts fully supports embedded photos and will display them in the contact list and contact cards.
+    </Info>
+  </Tab>
+  
+  <Tab title="Other Apps">
+    ### CardDAV / CalDAV
+    
+    For CardDAV-compatible services (Nextcloud, ownCloud, etc.):
+    
+    <Steps>
+      <Step title="Access web interface">
+        Log in to your CardDAV server's web interface.
+      </Step>
+      
+      <Step title="Find contacts section">
+        Navigate to the contacts or address book section.
+      </Step>
+      
+      <Step title="Import">
+        Look for an import option and upload `recursers.vcf`.
+      </Step>
+    </Steps>
+    
+    ### Thunderbird
+    
+    <Steps>
+      <Step title="Open Address Book">
+        In Thunderbird, go to **Tools → Address Book**.
+      </Step>
+      
+      <Step title="Import">
+        Go to **Tools → Import** and select **Address Books**.
+      </Step>
+      
+      <Step title="Choose format">
+        Select **vCard** as the format and choose `recursers.vcf`.
+      </Step>
+    </Steps>
+    
+    ### Android Contacts
+    
+    <Steps>
+      <Step title="Transfer file">
+        Copy `recursers.vcf` to your Android device via USB, email, or cloud storage.
+      </Step>
+      
+      <Step title="Open file">
+        Use a file manager to locate and tap the VCF file.
+      </Step>
+      
+      <Step title="Import">
+        Android will ask which account to import to. Choose **Google** to sync across devices or **Phone** for local storage only.
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Updating Contacts
+
+To update your contacts with the latest information:
+
+<Steps>
+  <Step title="Generate a fresh VCF file">
+    Run the generator again to create an updated `recursers.vcf`:
+    
+    ```bash
+    cargo run --release
+    ```
+  </Step>
+  
+  <Step title="Import the new file">
+    Follow the same import process for your platform. The unique IDs (`recurser-{id}`) ensure that:
+    
+    - Existing contacts are **updated** with new information
+    - New Recursers are **added**
+    - No duplicate contacts are created
+  </Step>
+  
+  <Step title="Verify updates">
+    Check a few contacts to confirm their information was updated.
+  </Step>
+</Steps>
+
+<Info>
+  Most contact managers use the UID field to match existing contacts. Since the generator uses `UID:recurser-{id}` (see `main.rs:303`), re-importing will update rather than duplicate.
+</Info>
+
+## Filtering and Organization
+
+### By Batch
+
+All Recursers have batch information in their `CATEGORIES` field:
+
+```
+CATEGORIES:Recurser,Recurse W1'25,Recurse S2'23
+```
+
+You can use this to:
+
+- **Filter by batch** in contact managers that support category filtering
+- **Create smart groups** based on batch membership
+- **Find all Recursers** by filtering for the "Recurser" category
+
+### By Social Media
+
+All social media links are included with custom labels:
+
+- **GitHub**: `X-ABLabel:GitHub`
+- **Twitter**: `X-ABLabel:Twitter`
+- **LinkedIn**: `X-ABLabel:LinkedIn`
+- **Recurse Center**: `X-ABLabel:Recurse Center`
+
+Contact managers that support custom URL labels will display these appropriately.
+
+## Troubleshooting
+
+<Accordion title="Import failed: File too large">
+  The VCF file may exceed your contact manager's size limit. Solutions:
+  
+  1. **Google Contacts**: Split the file into chunks under 25 MB (see splitting instructions above)
+  2. **Outlook Web**: Try using the desktop app instead
+  3. **iOS**: Use the macOS import + iCloud sync method instead of direct import
+</Accordion>
+
+<Accordion title="Photos not showing up">
+  Some contact managers don't support embedded photos in vCard 3.0 format:
+  
+  - **Google Contacts**: Fully supported
+  - **iOS/macOS Contacts**: Fully supported
+  - **Outlook**: Partially supported (may need to click "Download pictures")
+  - **Android**: Depends on manufacturer's contacts app
+  
+  If photos aren't displaying, check your contact manager's settings for "Show contact photos" or similar options.
+</Accordion>
+
+<Accordion title="Duplicate contacts created">
+  If duplicates appear despite the UIDs:
+  
+  1. **Export your contacts** before importing again
+  2. **Delete the duplicates** using your contact manager's duplicate detection
+  3. **Re-import** - the UIDs should prevent future duplicates
+  
+  Some older contact managers don't properly honor the UID field.
+</Accordion>
+
+<Accordion title="Special characters display incorrectly">
+  The generator escapes special characters per the vCard spec (see `main.rs:94-99`):
+  
+  - Backslashes: `\\`
+  - Newlines: `\n`
+  - Commas: `\,`
+  - Semicolons: `\;`
+  
+  If these appear literally in your contacts, your contact manager may not be properly parsing vCard escape sequences.
+</Accordion>
+
+<Accordion title="Import taking too long">
+  Large VCF files can take several minutes to import:
+  
+  - **Google Contacts**: 3-5 minutes for 2,000+ contacts
+  - **iOS**: 1-2 minutes for direct import
+  - **macOS**: 2-4 minutes for large files
+  - **Outlook**: 5-10 minutes for large files
+  
+  Be patient and don't interrupt the import process.
+</Accordion>
+
+## Privacy Considerations
+
+<Warning>
+  The VCF file contains personal information for all Recursers including:
+  - Email addresses
+  - Phone numbers (if provided)
+  - Social media profiles
+  - Profile photos
+  
+  **Treat this file as sensitive data:**
+  - Don't share it publicly
+  - Don't commit it to public repositories
+  - Store it securely
+  - Delete old versions when no longer needed
+</Warning>
+
+## Next Steps
+
+After importing:
+
+1. **Search for fellow Recursers** by name or batch
+2. **Add custom notes** to contacts you interact with
+3. **Create groups** by batch or interest area
+4. **Set up reminders** to reach out to people
+5. **Re-import periodically** to get updates and new Recursers
+
+<Info>
+  Consider running the generator monthly or quarterly to keep your contacts up-to-date with new Recursers and profile changes.
+</Info>

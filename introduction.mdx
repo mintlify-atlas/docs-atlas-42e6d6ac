@@ -1,0 +1,130 @@
+---
+title: Introduction
+description: Generate VCF contact files from Recurse Center profiles
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.svg"
+  alt="RC VCF Generator Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.svg"
+  alt="RC VCF Generator Hero Dark"
+/>
+
+## Welcome to RC VCF Generator
+
+RC VCF Generator is a command-line tool that transforms Recurse Center profiles into a comprehensive VCF (vCard) contact file. With a single command, you can download all Recurser profiles and import them directly into your contacts app.
+
+## Why RC VCF Generator?
+
+Staying connected with fellow Recursers is essential, but manually adding hundreds of contacts is time-consuming and error-prone. RC VCF Generator solves this by:
+
+- **Automating contact creation** - Generate a complete VCF file with all Recurser contacts in seconds
+- **Preserving rich profile data** - Includes names, emails, phone numbers, profile photos, social links (GitHub, Twitter, LinkedIn), company info, and batch affiliations
+- **Providing real-time progress** - Live progress indicators show exactly what's happening during the fetch process
+- **Formatting phone numbers intelligently** - Automatically normalizes phone numbers to human-readable formats
+- **Embedding profile photos** - Downloads and embeds profile pictures as base64-encoded images
+
+## Key Features
+
+### Comprehensive Profile Data
+
+Every vCard includes:
+- Full name with structured first/last name fields
+- Email addresses
+- Normalized phone numbers (US format: `(718) 769-2654`, International: `+44 20 7946 0958`)
+- Profile photos embedded as base64
+- Social media links (GitHub, Twitter, LinkedIn, personal websites)
+- Company and role information
+- Recurse Center batch affiliations as categories
+- Pronouns in the notes field
+- Direct link to RC directory profile
+
+### Smart Progress Tracking
+
+The tool provides live feedback with:
+- Animated spinner during processing
+- Batch-by-batch progress updates
+- Individual profile processing status
+- Photo download indicators
+- Summary statistics (total contacts, photos included, file size, total time)
+
+### Built with Modern Rust
+
+RC VCF Generator leverages:
+- **reqwest** - High-performance HTTP client with blocking API
+- **serde** - Robust JSON serialization/deserialization
+- **chrono** - Date and time handling
+- **phonenumber** - International phone number parsing and formatting
+- **base64** - Efficient image encoding
+
+## Example Output
+
+When you run the tool, you'll see progress like this:
+
+```bash
+🔄 RC VCF Generator
+
+✓ API client initialized (1s)
+✓ Batch 1: fetched 50 profiles (3s)
+⠋ Processing 23/50: Jane Smith (downloading photo...) (15s)
+✓ Fetched all 247 profiles in 5 batches (1m 23s)
+✓ Wrote 247 contacts to recursers.vcf (1m 25s)
+
+📊 Summary
+   ├─ Contacts: 247
+   ├─ With photos: 189
+   ├─ File size: 12.4 MB
+   └─ Time: 1m 25s
+```
+
+## Get Started
+
+<CardGroup cols={2}>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Install the CLI tool using Cargo or build from source
+  </Card>
+  <Card
+    title="Quickstart"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Generate your first VCF file in under 5 minutes
+  </Card>
+  <Card
+    title="API Reference"
+    icon="code"
+    href="/api/overview"
+  >
+    Learn about the Recurse Center API integration
+  </Card>
+  <Card
+    title="Data Types"
+    icon="file-lines"
+    href="/reference/data-types"
+  >
+    Understand the vCard 3.0 format and data structures
+  </Card>
+</CardGroup>
+
+## Who Is This For?
+
+- **Current Recursers** - Build your contact list during your batch
+- **RC Alumni** - Stay connected with the broader community
+- **Hub Staff** - Maintain up-to-date contact information
+- **Anyone** - Who wants to network with the amazing RC community
+
+## What You'll Need
+
+- Rust toolchain (1.70 or later)
+- A Recurse Center account
+- A personal access token from the RC API
+
+Ready to get started? Head over to the [Installation](/installation) guide.

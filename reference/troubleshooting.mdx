@@ -1,0 +1,584 @@
+---
+title: Troubleshooting
+description: Common issues and solutions for RC VCF Generator
+---
+
+This page covers common problems you might encounter and how to solve them.
+
+## Authentication Errors
+
+### Missing RECURSE_PAT Environment Variable
+
+<Warning>
+  **Error Message**: `RECURSE_PAT environment variable not set`
+</Warning>
+
+**Cause**: The required Personal Access Token environment variable is not configured.
+
+**Solution**:
+
+<Steps>
+  <Step title="Create a .env file">
+    Create a `.env` file in the project root directory:
+    ```bash
+    touch .env
+    ```
+  </Step>
+  
+  <Step title="Add your token">
+    Add your Personal Access Token to the file:
+    ```bash
+    RECURSE_PAT=your_token_here
+    ```
+  </Step>
+  
+  <Step title="Verify the file">
+    Ensure the `.env` file is in the same directory where you run `cargo run`:
+    ```bash
+    ls -la .env
+    cat .env  # Should show RECURSE_PAT=...
+    ```
+  </Step>
+</Steps>
+
+<Accordion title="Alternative: Export directly">
+  If you don't want to use a `.env` file:
+  
+  ```bash
+  # Unix/Linux/macOS
+  export RECURSE_PAT=your_token_here
+  cargo run
+  
+  # Or inline
+  RECURSE_PAT=your_token_here cargo run
+  
+  # Windows PowerShell
+  $env:RECURSE_PAT="your_token_here"
+  cargo run
+  
+  # Windows CMD
+  set RECURSE_PAT=your_token_here
+  cargo run
+  ```
+</Accordion>
+
+---
+
+### Authentication Failed (401)
+
+<Warning>
+  **Error Message**: `Authentication failed`
+  
+  **HTTP Status**: 401 Unauthorized
+</Warning>
+
+**Cause**: The Personal Access Token is invalid, expired, or malformed.
+
+**Common Reasons**:
+- Token was copied incorrectly (extra spaces, missing characters)
+- Token has been revoked or expired
+- Token was created for a different environment
+
+**Solution**:
+
+<Steps>
+  <Step title="Verify token format">
+    Check that your token has no extra spaces or newlines:
+    ```bash
+    # Print the token to verify
+    echo "$RECURSE_PAT"
+    
+    # Should be a single line with no spaces at start/end
+    ```
+  </Step>
+  
+  <Step title="Generate new token">
+    Create a fresh Personal Access Token:
+    1. Log in to [www.recurse.com](https://www.recurse.com)
+    2. Navigate to Settings → Personal Access Tokens
+    3. Create a new token with description "VCF Generator"
+    4. Copy the token immediately
+  </Step>
+  
+  <Step title="Update environment variable">
+    Replace the old token in your `.env` file:
+    ```bash
+    RECURSE_PAT=new_token_here
+    ```
+  </Step>
+  
+  <Step title="Test authentication">
+    Run the application to verify:
+    ```bash
+    cargo run
+    ```
+  </Step>
+</Steps>
+
+<Info>
+  You can also test authentication using basic auth to create a new token programmatically (see `rc_api::create_token()`).
+</Info>
+
+---
+
+## API Errors
+
+### Resource Not Found (404)
+
+<Warning>
+  **Error Message**: `Resource not found`
+  
+  **HTTP Status**: 404 Not Found
+</Warning>
+
+**Cause**: The requested profile, batch, or resource doesn't exist or you don't have access to it.
+
+**Common Scenarios**:
+
+<Accordion title="Profile not found">
+  ```rust
+  // Error: Profile ID doesn't exist
+  let profile = client.get_profile_by_id(999999)?;
+  
+  // Error: Email not in system
+  let profile = client.get_profile_by_email("nonexistent@example.com")?;
+  ```
+  
+  **Solution**: Verify the ID or email exists by searching first:
+  ```rust
+  let results = client.search_profiles(ProfileSearchParams {
+      query: Some("email@example.com".to_string()),
+      ..Default::default()
+  })?;
+  
+  if results.is_empty() {
+      println!("No profile found for that email");
+  }
+  ```
+</Accordion>
+
+<Accordion title="Batch not found">
+  ```rust
+  // Error: Invalid batch ID
+  let batch = client.get_batch(12345)?;
+  ```
+  
+  **Solution**: List all batches first:
+  ```rust
+  let batches = client.list_batches()?;
+  for batch in batches {
+      println!("Batch {}: {}", batch.id, batch.name);
+  }
+  ```
+</Accordion>
+
+---
+
+### Bad Request (400)
+
+<Warning>
+  **Error Message**: `Bad request: ...`
+  
+  **HTTP Status**: 400 Bad Request
+</Warning>
+
+**Cause**: Invalid parameters or malformed request data.
+
+**Common Issues**:
+
+<Accordion title="Invalid query parameters">
+  ```rust
+  // Error: Invalid limit value
+  let profiles = client.search_profiles(ProfileSearchParams {
+      limit: Some(0),  // Must be > 0
+      ..Default::default()
+  })?;
+  ```
+  
+  **Solution**: Use valid parameter values:
+  ```rust
+  let profiles = client.search_profiles(ProfileSearchParams {
+      limit: Some(50),  // Valid range: 1-100
+      offset: Some(0),
+      ..Default::default()
+  })?;
+  ```
+</Accordion>
+
+<Accordion title="Invalid date format">
+  ```rust
+  // Error: Wrong date format
+  let visit = client.get_hub_visit(123, "2024-13-01".parse()?)?;
+  ```
+  
+  **Solution**: Use proper `NaiveDate` parsing:
+  ```rust
+  use chrono::NaiveDate;
+  
+  let date = NaiveDate::from_ymd_opt(2024, 12, 1)
+      .expect("Invalid date");
+  let visit = client.get_hub_visit(123, date)?;
+  ```
+</Accordion>
+
+---
+
+### API Error (Other Status Codes)
+
+<Warning>
+  **Error Message**: `API error: HTTP {status}`
+</Warning>
+
+**Cause**: Unexpected server error or rate limiting.
+
+**Common Status Codes**:
+
+| Status | Meaning | Common Cause |
+|--------|---------|-------------|
+| 429 | Too Many Requests | Rate limit exceeded |
+| 500 | Internal Server Error | Server-side issue |
+| 503 | Service Unavailable | Maintenance or downtime |
+
+**Solution**:
+
+<Steps>
+  <Step title="Check for rate limiting">
+    If you see 429 errors, add delays between requests:
+    ```rust
+    use std::time::Duration;
+    use std::thread;
+    
+    for profile_id in profile_ids {
+        match client.get_profile_by_id(profile_id) {
+            Ok(profile) => { /* ... */ },
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                thread::sleep(Duration::from_secs(5));
+            }
+        }
+    }
+    ```
+  </Step>
+  
+  <Step title="Check RC status">
+    Visit the Recurse Center website to check if there's a known outage.
+  </Step>
+  
+  <Step title="Retry with exponential backoff">
+    ```rust
+    let mut retry_delay = Duration::from_secs(1);
+    let max_retries = 5;
+    
+    for attempt in 0..max_retries {
+        match client.get_my_profile() {
+            Ok(profile) => return Ok(profile),
+            Err(e) if attempt < max_retries - 1 => {
+                eprintln!("Attempt {} failed: {}", attempt + 1, e);
+                thread::sleep(retry_delay);
+                retry_delay *= 2; // Exponential backoff
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Network Errors
+
+### HTTP Request Failed
+
+<Warning>
+  **Error Message**: `HTTP request failed: {details}`
+</Warning>
+
+**Cause**: Network connectivity issues or DNS resolution failures.
+
+**Common Scenarios**:
+
+<Accordion title="Connection timeout">
+  **Error**: `HTTP request failed: operation timed out`
+  
+  **Solution**:
+  - Check your internet connection
+  - Verify you can reach `www.recurse.com`:
+    ```bash
+    ping www.recurse.com
+    curl https://www.recurse.com/api/v1
+    ```
+  - Check if you're behind a proxy or firewall
+  - Try again later if the RC servers are experiencing issues
+</Accordion>
+
+<Accordion title="DNS resolution failed">
+  **Error**: `HTTP request failed: failed to lookup address information`
+  
+  **Solution**:
+  - Check your DNS settings
+  - Try using a different DNS server (e.g., 8.8.8.8)
+  - Verify `/etc/hosts` doesn't have incorrect entries
+  - Flush your DNS cache:
+    ```bash
+    # macOS
+    sudo dscacheutil -flushcache
+    
+    # Linux
+    sudo systemd-resolve --flush-caches
+    
+    # Windows
+    ipconfig /flushdns
+    ```
+</Accordion>
+
+<Accordion title="SSL/TLS certificate errors">
+  **Error**: `HTTP request failed: certificate verify failed`
+  
+  **Solution**:
+  - Update your system's CA certificates:
+    ```bash
+    # Ubuntu/Debian
+    sudo apt-get update && sudo apt-get install ca-certificates
+    
+    # macOS (via Homebrew)
+    brew install ca-certificates
+    ```
+  - Check your system clock is correct (TLS certs are time-sensitive)
+  - If behind a corporate proxy, you may need to add custom CA certificates
+</Accordion>
+
+---
+
+## JSON Deserialization Errors
+
+### Failed to Deserialize Response
+
+<Warning>
+  **Error Message**: `JSON deserialization failed: {details}`
+</Warning>
+
+**Cause**: The API returned unexpected data that doesn't match the expected structure.
+
+**Debugging**:
+
+When deserialization fails, the error handler prints the raw response:
+
+```
+Failed to deserialize response. Error: missing field `email`
+Response body:
+{"id": 123, "name": "Test User"}
+```
+
+**Common Causes**:
+
+<Accordion title="API schema changed">
+  The Recurse Center API may have updated its schema.
+  
+  **Solution**:
+  - Check if there's a newer version of this tool
+  - Report the issue with the error details
+  - The response body in the error message shows what the API actually returned
+</Accordion>
+
+<Accordion title="Using deprecated endpoint">
+  You're using a deprecated API method.
+  
+  **Solution**:
+  Replace deprecated methods:
+  ```rust
+  // DON'T use deprecated methods
+  let person = client.get_person_by_id(123)?;  // Deprecated
+  
+  // DO use current methods
+  let profile = client.get_profile_by_id(123)?;  // Current
+  ```
+</Accordion>
+
+<Accordion title="Partial response">
+  Some optional fields might be unexpectedly null.
+  
+  **Solution**: Most fields in the data structures are already `Option<T>`, but if you encounter this:
+  1. Check the raw response in the error message
+  2. Report the issue if a required field is actually optional
+  3. Use `#[serde(default)]` annotation if contributing a fix
+</Accordion>
+
+---
+
+## VCF File Issues
+
+### Unable to Create Output File
+
+<Warning>
+  **Error Message**: `Failed to create output file`
+</Warning>
+
+**Cause**: Permission denied or invalid output path.
+
+**Solution**:
+
+<Steps>
+  <Step title="Check permissions">
+    Ensure you have write permissions in the current directory:
+    ```bash
+    # Check current directory permissions
+    ls -ld .
+    
+    # Try creating a test file
+    touch test.txt && rm test.txt
+    ```
+  </Step>
+  
+  <Step title="Use absolute path">
+    Specify a full path where you have write access:
+    ```rust
+    let output_path = "/home/user/Documents/recursers.vcf";
+    ```
+  </Step>
+  
+  <Step title="Check disk space">
+    Verify you have enough disk space:
+    ```bash
+    df -h .
+    ```
+    The VCF file can be several MB (typically 5-10 MB for all Recursers).
+  </Step>
+</Steps>
+
+---
+
+### VCF Import Issues
+
+<Accordion title="Contacts not importing">
+  **Problem**: VCF file is created but contacts don't import into your contacts app.
+  
+  **Solution**:
+  - Verify the file is valid VCF format:
+    ```bash
+    head -20 recursers.vcf
+    # Should show BEGIN:VCARD / VERSION:3.0 / etc.
+    ```
+  - Try a different contacts app (some are more forgiving of format variations)
+  - Check the app's import logs for specific errors
+</Accordion>
+
+<Accordion title="Photos not appearing">
+  **Problem**: Contacts import but photos are missing.
+  
+  **Causes**:
+  - Profile has no photo (image path contains "missing")
+  - Photo download failed during generation
+  - Contact app doesn't support embedded photos
+  
+  **Solution**:
+  - Check the terminal output for download errors
+  - Note that not all Recursers have profile photos
+  - Some contacts apps require re-syncing to show photos
+</Accordion>
+
+<Accordion title="Duplicate contacts">
+  **Problem**: Importing creates duplicate entries.
+  
+  **Solution**:
+  - Most contact apps can merge duplicates automatically
+  - Use the UID field to identify duplicates (format: `recurser-{id}`)
+  - Delete the old import before re-importing
+</Accordion>
+
+<Accordion title="Special characters corrupted">
+  **Problem**: Names or fields with special characters display incorrectly.
+  
+  **Solution**:
+  - Verify the VCF file is UTF-8 encoded:
+    ```bash
+    file recursers.vcf
+    # Should show: UTF-8 Unicode text
+    ```
+  - If using Windows, ensure your contacts app supports UTF-8
+  - Try opening the VCF in a text editor to verify the data
+</Accordion>
+
+---
+
+## Build and Runtime Errors
+
+### Failed to Create API Client
+
+<Warning>
+  **Error Message**: `Failed to create API client`
+</Warning>
+
+**Cause**: Error initializing the HTTP client.
+
+**Solution**:
+
+```rust
+// Check what the actual error is
+match RcApiClient::new(token) {
+    Ok(client) => { /* ... */ },
+    Err(e) => eprintln!("Client creation failed: {:?}", e),
+}
+```
+
+This is usually caused by:
+- TLS initialization failure (missing OpenSSL libraries)
+- System configuration issues
+
+**Fix**: Install required dependencies:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install libssl-dev pkg-config
+
+# macOS
+brew install openssl
+
+# Fedora/RHEL
+sudo dnf install openssl-devel
+```
+
+Then rebuild:
+```bash
+cargo clean
+cargo build --release
+```
+
+---
+
+### Compilation Errors
+
+<Accordion title="Missing dependencies">
+  **Error**: `error: failed to run custom build command for 'openssl-sys'`
+  
+  **Solution**: Install OpenSSL development libraries (see above).
+</Accordion>
+
+<Accordion title="Rust version too old">
+  **Error**: `error: package requires rustc 1.70.0 or newer`
+  
+  **Solution**: Update Rust:
+  ```bash
+  rustup update stable
+  ```
+</Accordion>
+
+---
+
+## Getting Help
+
+If you encounter an issue not covered here:
+
+1. **Check the error message carefully** - Most errors include helpful context
+2. **Enable debug logging** - Set `RUST_LOG=debug` to see more details:
+   ```bash
+   RUST_LOG=debug cargo run
+   ```
+3. **Check the raw API response** - Deserialization errors print the actual JSON received
+4. **Verify your environment** - Ensure RECURSE_PAT is set and valid
+5. **Search existing issues** - Check if others have encountered the same problem
+6. **Report the issue** - Include:
+   - Full error message
+   - Operating system and Rust version
+   - Steps to reproduce
+   - Relevant log output (with sensitive data removed)

@@ -1,0 +1,270 @@
+---
+title: 'Authentication'
+description: 'Authentication methods for the RC API Client'
+---
+
+The RC API Client supports two authentication methods: Bearer token authentication and Basic authentication.
+
+## Authentication Enum
+
+The `Authentication` enum defines the supported authentication methods:
+
+```rust src/rc_api.rs:355-372
+#[derive(Debug, Clone)]
+pub enum Authentication {
+    Bearer(String),
+    Basic { email: String, password: String },
+}
+
+impl Authentication {
+    fn to_header_value(&self) -> String {
+        match self {
+            Authentication::Bearer(token) => format!("Bearer {}", token),
+            Authentication::Basic { email, password } => {
+                let credentials = format!("{}:{}", email, password);
+                let encoded = base64::engine::general_purpose::STANDARD.encode(credentials);
+                format!("Basic {}", encoded)
+            }
+        }
+    }
+}
+```
+
+### Variants
+
+<ResponseField name="Authentication" type="enum">
+  Authentication method for API requests.
+  
+  <Expandable title="Variants">
+    <ResponseField name="Bearer" type="Bearer(String)">
+      Bearer token authentication using a personal access token.
+      
+      **Example:**
+      ```rust
+      Authentication::Bearer("your_token_here".to_string())
+      ```
+    </ResponseField>
+    
+    <ResponseField name="Basic" type="Basic { email: String, password: String }">
+      Basic authentication using email and password. The credentials are base64-encoded automatically.
+      
+      **Example:**
+      ```rust
+      Authentication::Basic {
+          email: "user@example.com".to_string(),
+          password: "password".to_string(),
+      }
+      ```
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Bearer Token Authentication
+
+Bearer token authentication is the recommended method for most use cases. You can obtain a personal access token from your RC settings.
+
+### Creating a Client with Bearer Token
+
+<CodeGroup>
+```rust Using new()
+use rc_api::RcApiClient;
+
+let client = RcApiClient::new("your_token_here".to_string())?;
+```
+
+```rust Using with_auth()
+use rc_api::{RcApiClient, Authentication};
+
+let auth = Authentication::Bearer("your_token_here".to_string());
+let client = RcApiClient::with_auth(auth)?;
+```
+
+```rust From Environment Variable
+use rc_api::{RcApiClient, Authentication};
+
+let token = std::env::var("RECURSE_PAT")
+    .expect("RECURSE_PAT environment variable not set");
+let auth = Authentication::Bearer(token);
+let client = RcApiClient::with_auth(auth)?;
+```
+</CodeGroup>
+
+### Real-World Example
+
+From the RC VCF Generator:
+
+```rust src/main.rs:323-326
+let auth = rc_api::Authentication::Bearer(
+    std::env::var("RECURSE_PAT").expect("RECURSE_PAT environment variable not set"),
+);
+let client = rc_api::RcApiClient::with_auth(auth).expect("Failed to create API client");
+```
+
+## Basic Authentication
+
+Basic authentication uses your RC email and password. This method is required for certain operations like creating tokens.
+
+### Creating a Client with Basic Auth
+
+<CodeGroup>
+```rust Using with_basic_auth()
+use rc_api::RcApiClient;
+
+let client = RcApiClient::with_basic_auth(
+    "user@example.com".to_string(),
+    "password".to_string(),
+)?;
+```
+
+```rust Using with_auth()
+use rc_api::{RcApiClient, Authentication};
+
+let auth = Authentication::Basic {
+    email: "user@example.com".to_string(),
+    password: "password".to_string(),
+};
+let client = RcApiClient::with_auth(auth)?;
+```
+</CodeGroup>
+
+### Base64 Encoding
+
+The client automatically encodes your credentials to base64 format:
+
+```rust
+// Input: email="user@example.com", password="password"
+// Output: "Basic dXNlckBleGFtcGxlLmNvbTpwYXNzd29yZA=="
+```
+
+<Note>
+Basic authentication credentials are base64-encoded automatically. You don't need to encode them yourself.
+</Note>
+
+## When to Use Each Method
+
+<Tabs>
+  <Tab title="Bearer Token">
+    **Use Bearer token authentication when:**
+    
+    - You have a personal access token
+    - You're building a production application
+    - You want to avoid hardcoding passwords
+    - You're accessing read-only data (profiles, batches, etc.)
+    
+    **Advantages:**
+    - More secure (can be revoked without changing password)
+    - Can be scoped to specific permissions
+    - Recommended for most use cases
+  </Tab>
+  
+  <Tab title="Basic Auth">
+    **Use Basic authentication when:**
+    
+    - You need to create new tokens
+    - You're performing administrative operations
+    - You don't have a token yet
+    
+    **Required for:**
+    - Creating personal access tokens via `create_token()`
+    
+    **Considerations:**
+    - Less secure than tokens
+    - Should be used with HTTPS only
+    - Consider using environment variables for credentials
+  </Tab>
+</Tabs>
+
+## Authorization Header
+
+The client automatically adds the `Authorization` header to all requests:
+
+```rust src/rc_api.rs:416-423
+fn auth_headers(&self) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        AUTHORIZATION,
+        HeaderValue::from_str(&self.auth.to_header_value()).unwrap(),
+    );
+    headers
+}
+```
+
+### Header Format
+
+<CodeGroup>
+```http Bearer Token
+Authorization: Bearer your_token_here
+```
+
+```http Basic Auth
+Authorization: Basic dXNlckBleGFtcGxlLmNvbTpwYXNzd29yZA==
+```
+</CodeGroup>
+
+## Security Best Practices
+
+<Warning>
+Never commit tokens or passwords to version control. Always use environment variables or secure secret management.
+</Warning>
+
+### Using Environment Variables
+
+Create a `.env` file:
+
+```bash .env
+RECURSE_PAT=your_token_here
+```
+
+Load it in your application:
+
+```rust
+use dotenv::dotenv;
+
+fn main() {
+    dotenv().ok();
+    
+    let token = std::env::var("RECURSE_PAT")
+        .expect("RECURSE_PAT not set");
+    let client = RcApiClient::new(token)?;
+}
+```
+
+### .gitignore
+
+Make sure to ignore your `.env` file:
+
+```gitignore .gitignore
+.env
+*.env
+```
+
+## Testing Authentication
+
+You can test your authentication by calling `get_my_profile()`:
+
+```rust
+use rc_api::RcApiClient;
+
+let client = RcApiClient::new("your_token".to_string())?;
+
+match client.get_my_profile() {
+    Ok(profile) => println!("Authenticated as: {}", profile.name),
+    Err(e) => eprintln!("Authentication failed: {}", e),
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Create Tokens" icon="key" href="/api/tokens">
+    Learn how to create personal access tokens
+  </Card>
+  
+  <Card title="Error Handling" icon="triangle-exclamation" href="/api/error-handling">
+    Handle authentication errors
+  </Card>
+  
+  <Card title="Profiles API" icon="user" href="/api/profiles">
+    Start using the authenticated client
+  </Card>
+</CardGroup>

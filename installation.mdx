@@ -62,8 +62,8 @@ Clone the repository and build the project:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/rc-vcf.git
-cd rc-vcf
+git clone https://github.com/roobscoob/rcvcf.git
+cd rcvcf
 
 # Build the release binary
 cargo build --release
@@ -83,8 +83,8 @@ For contributors or those who want to modify the code:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/rc-vcf.git
-cd rc-vcf
+git clone https://github.com/roobscoob/rcvcf.git
+cd rcvcf
 
 # Run directly with cargo
 cargo run
@@ -119,21 +119,21 @@ After installation, verify that the tool is available:
 <CodeGroup>
 
 ```bash If installed to PATH
-rc-vcf --version
+rc-vcf
 ```
 
 ```bash If running from project directory
-cargo run -- --version
+cargo run
 ```
 
 ```bash If using the binary directly
-./target/release/rc-vcf --version
+./target/release/rc-vcf
 ```
 
 </CodeGroup>
 
 <Note>
-  The current version is **0.1.0** as specified in `Cargo.toml`.
+  The CLI will start running immediately and fetch profiles from the Recurse Center API. Make sure you have set the `RECURSE_PAT` environment variable first. The current version is **0.1.0** as specified in `Cargo.toml`.
 </Note>
 
 ## Platform-Specific Notes

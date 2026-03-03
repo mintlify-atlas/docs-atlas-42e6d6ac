@@ -1,0 +1,82 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "RC VCF Generator",
+  "projectDescription": "A CLI tool to generate VCF contact files from Recurse Center profiles with photos and social links.",
+  "theme": "aspen",
+  "primaryColor": "#E67E22",
+  "lightColor": "#F39C12",
+  "darkColor": "#D35400",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "installation",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "Guides",
+        "pages": [
+          "guides/authentication",
+          "guides/generating-vcf",
+          "guides/importing-contacts"
+        ]
+      },
+      {
+        "group": "API Client",
+        "pages": [
+          "api/overview",
+          "api/authentication",
+          "api/profiles",
+          "api/batches",
+          "api/locations",
+          "api/hub-visits",
+          "api/tokens",
+          "api/error-handling"
+        ]
+      },
+      {
+        "group": "Reference",
+        "pages": [
+          "reference/data-types",
+          "reference/configuration",
+          "reference/troubleshooting"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Generate VCF files from Recurse Center profiles",
+    "Embed profile photos as base64 in vCards",
+    "Normalize phone numbers to proper formats",
+    "Comprehensive Recurse Center API client",
+    "Batch processing with progress indicators",
+    "Support for profiles, batches, locations, and hub visits",
+    "Bearer and basic authentication support",
+    "Automatic retry on API failures"
+  ],
+  "publicApiSurface": [
+    "rc-vcf CLI command",
+    "RcApiClient::new",
+    "RcApiClient::with_auth",
+    "RcApiClient::with_basic_auth",
+    "RcApiClient::search_profiles",
+    "RcApiClient::get_profile_by_id",
+    "RcApiClient::get_profile_by_email",
+    "RcApiClient::get_my_profile",
+    "RcApiClient::list_batches",
+    "RcApiClient::get_batch",
+    "RcApiClient::search_locations",
+    "RcApiClient::get_hub_visits",
+    "RcApiClient::update_hub_visit",
+    "RcApiClient::create_token",
+    "Profile",
+    "Batch",
+    "Location",
+    "HubVisit",
+    "ProfileSearchParams",
+    "Authentication"
+  ]
+}
